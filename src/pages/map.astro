@@ -1,0 +1,21 @@
+---
+import DataFailure from "../components/DataFailure.astro";
+import InteractiveMap from "../components/InteractiveMap.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getDatabase } from "../lib/db/client";
+import { getMapArchiveData } from "../lib/db/public";
+
+let data: Awaited<ReturnType<typeof getMapArchiveData>> | null = null;
+try {
+  data = await getMapArchiveData(getDatabase());
+} catch {
+  Astro.response.status = 503;
+}
+---
+
+<BaseLayout title="Map — Atlas" description="按年份与旅程浏览 Atlas 中到访过的地点。">
+  {data ? <div class="map-page">
+    <header class="archive-header"><p class="eyebrow">ARCHIVE / MAP</p><h1>Map</h1><p>按年份与旅程筛选去过的地点。</p></header>
+    <InteractiveMap points={data.points} years={data.years} journeys={data.journeys} filters />
+  </div> : <DataFailure />}
+</BaseLayout>

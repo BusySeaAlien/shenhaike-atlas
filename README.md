@@ -2,7 +2,7 @@
 
 Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与 Cloudflare D1。
 
-当前已完成实施细则前四步：应用与 local D1 骨架、核心数据模型、受保护的私人维护后台，以及与 D1 实时联动的公开档案页面。交互地图和生产部署将在后续步骤完成。
+当前已完成实施细则前五步：应用与 local D1 骨架、核心数据模型、受保护的私人维护后台、与 D1 实时联动的公开档案页面，以及响应式交互地图。生产部署与维护交接将在第六步完成。
 
 ## 运行时
 
@@ -11,6 +11,7 @@ Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与
 - Astro 7.3.2
 - `@astrojs/cloudflare` 14.3.1
 - Wrangler 4.131.1
+- Leaflet 1.9.4
 
 这些版本按 2026-09-13 的 npm 发布版本与兼容范围固定。Atlas 使用独立依赖和锁文件，不要求升级 Home、Ink 或 Lens。
 
@@ -25,7 +26,9 @@ pnpm dev
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
 
-公开档案包含首页地图预览与摘要、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。地图预览在本阶段保留为可访问的静态点位与列表，筛选、缩放和点位交互将在第五步完成。
+公开档案包含首页地图与摘要、`/map/` 筛选地图、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。
+
+`/map/` 提供 All 重置、访问年份和旅程筛选；年份与旅程同时选择时取地点集合交集，结果始终按 Place 去重。点位、筛选和同步地点列表均可用键盘操作；手机不依赖 hover，选择后通过明确链接进入详情。零点显示空状态，单点使用适当缩放，多点自动适配视野，同坐标或密集点位仍可从列表选择。
 
 本地后台位于 `http://127.0.0.1:4321/guillaume/`。认证旁路只会在 `astro dev` 的编译期开发模式启用，默认身份为 `local@atlas.invalid`；可复制 `.dev.vars.example` 为 `.dev.vars` 修改本地显示身份。请求参数、Cookie 或 Host 头均不能开启此旁路。
 
@@ -82,7 +85,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 ## 渲染边界
 
 - `/about/` 显式预渲染为静态页面，`public/` 资源由静态资源层提供。
-- 首页、地点、旅程和时间轴页面使用按请求渲染，并设置 `Cache-Control: no-store`，后台保存后下一次读取即反映最新 D1 数据。
+- 首页、地图、地点、旅程和时间轴页面使用按请求渲染，并设置 `Cache-Control: no-store`，后台保存后下一次读取即反映最新 D1 数据。
 - `/system/database/` 在服务端直接调用共享数据库查询层，不通过 HTTP 请求自身 API，也不缓存响应。
 - 公开 API 只会在地图交互等浏览器端确有需要时增加。
 
@@ -92,6 +95,14 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 - 最近地点按最后到访日期倒序排列并按地点去重；旅程分别展示不同地点数和 Visit 总数，天数包含首尾日期。
 - `/journeys/` 保留空旅程；无 Visit 的地点和旅程详情显示空状态，但不会进入首页地图或已到访统计。
 - 未知 slug 返回真实 404；D1 查询失败返回不泄露内部异常的 503 页面。公开页面均提供描述、规范 URL 和 Open Graph 元数据。
+
+## 地图依赖、底图与坐标
+
+- 交互层固定使用 Leaflet 1.9.4，业务页面只传递仓库内定义的 `MapPoint`，不暴露 Leaflet 专用类型。
+- 底图使用 OpenStreetMap Standard raster tiles：`https://tile.openstreetmap.org/{z}/{x}/{y}.png`。地图内始终显示 `© OpenStreetMap contributors` 和 Leaflet 链接；数据遵循 [ODbL](https://www.openstreetmap.org/copyright)，瓦片使用遵循 [OSMF Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)。
+- 浏览器只请求当前视野所需瓦片，保留浏览器默认 Referer 和缓存行为；不代理、预取、批量下载或提供离线地图。OSM 标准瓦片为 best-effort 服务，未来流量增长或生产政策需要时可通过集中配置切换供应商。
+- D1 保存并向 Leaflet 传递 WGS84 纬度、经度；不进行 GCJ-02 或其他坐标转换。旅程详情的连线仅表达访问顺序，不代表道路、GPS 轨迹或距离。
+- 瓦片或脚本加载失败时，导航、筛选前的服务端地点列表和详情入口仍保留；禁用 JavaScript 时也可浏览全部地点。
 
 ## 目录
 

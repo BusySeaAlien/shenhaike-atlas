@@ -35,7 +35,7 @@ const title = journey ? `${journey.nameZh || journey.name} — Atlas` : failed ?
     </header>
     {journey.description && <div class="detail-description"><p>{journey.description}</p></div>}
     <section class="route-section" aria-labelledby="route-heading">
-      <div class="section-heading"><div><p class="eyebrow">SEQUENCE</p><h2 id="route-heading">Route</h2></div></div>
+      <div class="section-heading"><div><p class="eyebrow">SEQUENCE</p><h2 id="route-heading">Route</h2></div><span>Visit order · not a tracked route</span></div>
       {detail.visits.length ? <ol class="route-list">{detail.visits.map((visit, index) => <li><span class="route-number">{String(index + 1).padStart(2, "0")}</span><div class="route-point" aria-hidden="true"></div><div><time datetime={visit.visitedAt}>{visit.visitedAt}</time><h3><a href={`/places/${visit.placeSlug}/`}>{visit.placeNameZh || visit.placeName}</a></h3>{visit.placeNameZh && <p class="english-name">{visit.placeName}</p>}{visit.notes && <p class="route-notes">{visit.notes}</p>}<small>{visit.latitude.toFixed(4)} · {visit.longitude.toFixed(4)}</small></div></li>)}</ol> : <p class="archive-empty">No visits in this journey yet.</p>}
     </section>
   </article> : <NotFound noun="Journey" />}

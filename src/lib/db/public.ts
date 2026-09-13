@@ -3,6 +3,7 @@ import type {
   Journey,
   JourneySummary,
   JourneyVisit,
+  MapArchiveData,
   MapPoint,
   Place,
   PlaceVisit,
@@ -40,6 +41,13 @@ interface JourneyVisitRow extends VisitRow {
 }
 
 interface TimelineVisitRow extends JourneyVisitRow {
+  journey_slug: string;
+  journey_name: string;
+  journey_name_zh: string | null;
+}
+
+interface MapVisitRow extends PlaceRow {
+  visited_at: string;
   journey_slug: string;
   journey_name: string;
   journey_name_zh: string | null;
@@ -93,26 +101,69 @@ export async function listJourneySummaries(db: D1Database): Promise<JourneySumma
   return results.map(toJourneySummary);
 }
 
+export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData> {
+  const { results } = await db.prepare(`
+    SELECT ${PLACE_COLUMNS}, v.visited_at,
+      j.slug AS journey_slug, j.name AS journey_name, j.name_zh AS journey_name_zh
+    FROM visits v
+    INNER JOIN places p ON p.id = v.place_id
+    INNER JOIN journeys j ON j.id = v.journey_id
+    ORDER BY v.visited_at DESC, v.id DESC
+  `).all<MapVisitRow>();
+
+  const pointMap = new Map<number, MapPoint>();
+  const journeyMap = new Map<string, MapArchiveData["journeys"][number]>();
+  const years = new Set<string>();
+  for (const row of results) {
+    const place = toPlace(row);
+    const year = row.visited_at.slice(0, 4);
+    years.add(year);
+    journeyMap.set(row.journey_slug, {
+      slug: row.journey_slug,
+      name: row.journey_name,
+      nameZh: row.journey_name_zh,
+    });
+    const existing = pointMap.get(place.id);
+    if (existing) {
+      existing.visitCount += 1;
+      if (!existing.years.includes(year)) existing.years.push(year);
+      if (!existing.journeySlugs.includes(row.journey_slug)) existing.journeySlugs.push(row.journey_slug);
+      continue;
+    }
+    pointMap.set(place.id, {
+      id: String(place.id),
+      name: place.nameZh || place.name,
+      nameEn: place.name,
+      location: [place.city, place.region, place.country].filter(Boolean).join(" · "),
+      latitude: place.latitude,
+      longitude: place.longitude,
+      href: `/places/${place.slug}/`,
+      lastVisitedAt: row.visited_at,
+      visitCount: 1,
+      years: [year],
+      journeySlugs: [row.journey_slug],
+    });
+  }
+
+  return {
+    points: [...pointMap.values()],
+    years: [...years].sort((a, b) => b.localeCompare(a)),
+    journeys: [...journeyMap.values()],
+  };
+}
+
 export async function getHomeData(db: D1Database): Promise<HomeData> {
   const recentPlaces = await listVisitedPlaces(db);
   const journeys = await listJourneySummaries(db);
+  const map = await getMapArchiveData(db);
   const visitedJourneys = journeys.filter((journey) => journey.visitCount > 0);
-  const mapPoints: MapPoint[] = recentPlaces.map((place) => ({
-    id: String(place.id),
-    name: place.nameZh || place.name,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    href: `/places/${place.slug}/`,
-    lastVisitedAt: place.lastVisitedAt,
-    visitCount: place.visitCount,
-  }));
   const regions = new Set(
     recentPlaces
       .filter((place) => place.country.trim() && place.region?.trim())
       .map((place) => `${place.country}\u001f${place.region}`),
   );
   return {
-    mapPoints,
+    mapPoints: map.points,
     recentPlaces: recentPlaces.slice(0, 6),
     journeys: visitedJourneys,
     stats: {

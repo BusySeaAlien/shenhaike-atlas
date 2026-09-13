@@ -26,6 +26,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const response = await next();
     const dynamicArchiveRoute =
       pathname === "/" ||
+      pathname === "/map" ||
+      pathname === "/map/" ||
       pathname === "/journeys" ||
       pathname.startsWith("/journeys/") ||
       pathname === "/timeline" ||

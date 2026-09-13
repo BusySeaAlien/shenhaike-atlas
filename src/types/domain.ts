@@ -80,11 +80,27 @@ export interface VisitInput {
 export interface MapPoint {
   id: string;
   name: string;
+  nameEn: string;
+  location: string;
   latitude: number;
   longitude: number;
   href: string;
   lastVisitedAt: string;
   visitCount: number;
+  years: string[];
+  journeySlugs: string[];
+}
+
+export interface MapJourneyOption {
+  slug: string;
+  name: string;
+  nameZh: string | null;
+}
+
+export interface MapArchiveData {
+  points: MapPoint[];
+  years: string[];
+  journeys: MapJourneyOption[];
 }
 
 export interface VisitedPlaceSummary extends Place {

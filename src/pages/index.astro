@@ -1,8 +1,8 @@
 ---
 import CoordinateMark from "../components/CoordinateMark.astro";
 import DataFailure from "../components/DataFailure.astro";
+import InteractiveMap from "../components/InteractiveMap.astro";
 import JourneyCard from "../components/JourneyCard.astro";
-import MapArchivePreview from "../components/MapArchivePreview.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { getDatabase } from "../lib/db/client";
 import { getHomeData } from "../lib/db/public";
@@ -23,7 +23,8 @@ try {
       <p class="lede">Places I have been,<br />and the paths between them.</p>
       <CoordinateMark latitude="31.2304° N" longitude="121.4737° E" />
     </section>
-    <MapArchivePreview points={data.mapPoints} />
+    <InteractiveMap points={data.mapPoints} compact />
+    <p class="map-full-link"><a href="/map/">Explore and filter the full map ↗</a></p>
     <section class="home-section" aria-labelledby="journeys-heading">
       <div class="section-heading"><div><p class="eyebrow">JOURNEYS / RECENT</p><h2 id="journeys-heading">Journeys</h2></div><a href="/journeys/">View all ↗</a></div>
       {data.journeys.length ? <div class="journey-grid">{data.journeys.slice(0, 3).map((journey, index) => <JourneyCard journey={journey} index={index} />)}</div> : <p class="archive-empty">No journeys yet.</p>}
