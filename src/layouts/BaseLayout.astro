@@ -1,0 +1,46 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Atlas — 深海客",
+  description = "Personal Geographic Archive · 个人地理档案",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">跳到正文</a>
+    <div class="page-shell">
+      <header class="site-header">
+        <div class="brand-lockup">
+          <a class="wordmark" href="https://shenhaike.com">SHENHAIKE</a>
+          <span aria-hidden="true">/</span>
+          <a class="wordmark" href="/">ATLAS</a>
+        </div>
+        <nav aria-label="主导航">
+          <a href="/">Map</a>
+          <a href="/about/">About</a>
+          <a href="https://shenhaike.com">Home</a>
+        </nav>
+      </header>
+      <main id="content"><slot /></main>
+      <footer>
+        <span>31.2304° N · 121.4737° E</span>
+        <span>Personal Geographic Archive</span>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "name": "shenhaike-atlas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.21.0"
+  },
+  "packageManager": "pnpm@12.4.1",
+  "scripts": {
+    "dev": "wrangler types && astro dev --host 127.0.0.1",
+    "check": "wrangler types && astro check",
+    "build": "wrangler types && astro build",
+    "preview": "wrangler types && astro preview --host 127.0.0.1",
+    "db:migrate:local": "wrangler d1 migrations apply atlas --local",
+    "db:migrate:production": "wrangler d1 migrations apply atlas --remote",
+    "db:query:local": "wrangler d1 execute atlas --local --command",
+    "db:query:production": "wrangler d1 execute atlas --remote --command",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "14.3.1",
+    "astro": "7.3.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@types/node": "24.10.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.131.1"
+  }
+}

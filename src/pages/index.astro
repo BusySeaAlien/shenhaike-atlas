@@ -1,0 +1,19 @@
+---
+import CoordinateMark from "../components/CoordinateMark.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout>
+  <section class="hero">
+    <p class="eyebrow">PERSONAL GEOGRAPHIC ARCHIVE · 001</p>
+    <h1>Atlas</h1>
+    <p class="lede">记录地点、旅程，以及时间在坐标上留下的痕迹。</p>
+    <CoordinateMark latitude="31.2304° N" longitude="121.4737° E" />
+  </section>
+  <section class="status-panel" aria-labelledby="status-heading">
+    <p class="section-number">00 / FOUNDATION</p>
+    <h2 id="status-heading">档案正在建立</h2>
+    <p>应用骨架已就位。地点、旅程与时间轴将在后续步骤中逐步开放。</p>
+    <a href="/system/database/">检查本地数据库 <span aria-hidden="true">↗</span></a>
+  </section>
+</BaseLayout>

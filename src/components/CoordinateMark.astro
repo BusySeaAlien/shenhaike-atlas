@@ -1,0 +1,14 @@
+---
+interface Props {
+  latitude: string;
+  longitude: string;
+}
+
+const { latitude, longitude } = Astro.props;
+---
+
+<p class="coordinate-mark" aria-label={`坐标 ${latitude}, ${longitude}`}>
+  <span>{latitude}</span>
+  <i aria-hidden="true"></i>
+  <span>{longitude}</span>
+</p>

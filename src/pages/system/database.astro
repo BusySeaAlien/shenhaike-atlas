@@ -1,0 +1,36 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { readDatabaseHealth } from "../../lib/db/health";
+
+export const prerender = false;
+
+Astro.response.headers.set("Cache-Control", "no-store");
+
+let health: Awaited<ReturnType<typeof readDatabaseHealth>> | undefined;
+let unavailable = false;
+
+try {
+  health = await readDatabaseHealth();
+} catch {
+  unavailable = true;
+  Astro.response.status = 503;
+}
+---
+
+<BaseLayout title="Database status — Atlas" description="Atlas 本地 D1 连接状态。">
+  <section class="database-status">
+    <p class="eyebrow">SYSTEM / LOCAL D1</p>
+    <h1>{unavailable ? "Database unavailable" : "Database connected"}</h1>
+    {
+      health ? (
+        <dl>
+          <div><dt>Binding</dt><dd>DB</dd></div>
+          <div><dt>Schema</dt><dd>{health.status}</dd></div>
+          <div><dt>Checked</dt><dd>{health.checkedAt}</dd></div>
+        </dl>
+      ) : (
+        <p>请先运行 <code>pnpm db:migrate:local</code> 初始化本地数据库。</p>
+      )
+    }
+  </section>
+</BaseLayout>
