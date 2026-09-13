@@ -1,0 +1,12 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listJourneys } from "../../../lib/db/journeys";
+
+const journeys = await listJourneys(getDatabase());
+---
+
+<AdminLayout title="Journeys">
+  <div class="admin-heading"><div><p class="eyebrow">ARCHIVE / JOURNEYS</p><h1>Journeys</h1></div><a class="button" href="/guillaume/journeys/new/">+ New Journey</a></div>
+  {journeys.length ? <table class="data-table"><thead><tr><th>Journey</th><th>Dates</th><th>Updated</th></tr></thead><tbody>{journeys.map((journey) => <tr><td><a href={`/guillaume/journeys/${journey.id}/`}>{journey.nameZh || journey.name}</a><br /><small>{journey.slug}</small></td><td>{journey.startDate} — {journey.endDate}</td><td>{journey.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No journeys yet.</p>}
+</AdminLayout>

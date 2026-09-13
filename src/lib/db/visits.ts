@@ -105,8 +105,32 @@ export async function updateVisit(
 }
 
 export async function deleteVisit(db: D1Database, id: number): Promise<void> {
-  const result = await db.prepare("DELETE FROM visits WHERE id = ?1").bind(id).run();
-  if (result.meta.changes === 0) throw new DataError("not_found", "访问记录不存在");
+  const visit = await db
+    .prepare(`
+      SELECT journey_id, sequence,
+        (SELECT COALESCE(MAX(sequence), 0) FROM visits grouped WHERE grouped.journey_id = visits.journey_id) AS maximum
+      FROM visits WHERE id = ?1
+    `)
+    .bind(id)
+    .first<{ journey_id: number; sequence: number; maximum: number }>();
+  if (!visit) throw new DataError("not_found", "访问记录不存在");
+  const offset = visit.maximum + 1;
+  await db.batch([
+    db.prepare("DELETE FROM visits WHERE id = ?1").bind(id),
+    db
+      .prepare(`
+        UPDATE visits SET sequence = sequence + ?1
+        WHERE journey_id = ?2 AND sequence > ?3
+      `)
+      .bind(offset, visit.journey_id, visit.sequence),
+    db
+      .prepare(`
+        UPDATE visits SET sequence = sequence - ?1 - 1,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE journey_id = ?2 AND sequence > ?3 + ?1
+      `)
+      .bind(offset, visit.journey_id, visit.sequence),
+  ]);
 }
 
 export async function reorderVisits(

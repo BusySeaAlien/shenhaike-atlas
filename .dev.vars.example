@@ -1,0 +1,8 @@
+# Only used to label the local development identity. The bypass itself is
+# compile-time limited to `astro dev` and cannot be enabled by request input.
+LOCAL_ADMIN_EMAIL=local@atlas.invalid
+
+# Production values are configured as Worker secrets/variables, not committed here.
+# ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+# ACCESS_AUD=your-application-audience-tag
+# ADMIN_EMAIL=you@example.com

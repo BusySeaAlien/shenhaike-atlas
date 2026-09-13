@@ -29,6 +29,14 @@ export async function getJourneyBySlug(db: D1Database, slug: string): Promise<Jo
   return row ? toJourney(row) : null;
 }
 
+export async function getJourneyById(db: D1Database, id: number): Promise<Journey | null> {
+  const row = await db
+    .prepare(`SELECT ${JOURNEY_COLUMNS} FROM journeys WHERE id = ?1`)
+    .bind(id)
+    .first<JourneyRow>();
+  return row ? toJourney(row) : null;
+}
+
 export async function createJourney(db: D1Database, input: JourneyInput): Promise<Journey> {
   const value = validated(input);
   try {

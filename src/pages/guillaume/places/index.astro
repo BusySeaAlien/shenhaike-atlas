@@ -1,0 +1,12 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listPlaces } from "../../../lib/db/places";
+
+const places = await listPlaces(getDatabase());
+---
+
+<AdminLayout title="Places">
+  <div class="admin-heading"><div><p class="eyebrow">ARCHIVE / PLACES</p><h1>Places</h1></div><a class="button" href="/guillaume/places/new/">+ New Place</a></div>
+  {places.length ? <table class="data-table"><thead><tr><th>Place</th><th>Region</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{places.map((place) => <tr><td><a href={`/guillaume/places/${place.id}/`}>{place.nameZh || place.name}</a><br /><small>{place.slug}</small></td><td>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</td><td>{place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}</td><td>{place.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No places yet. Create the first coordinate in the archive.</p>}
+</AdminLayout>

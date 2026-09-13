@@ -2,6 +2,8 @@
 
 Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与 Cloudflare D1。
 
+当前已完成实施细则前三步：应用与 local D1 骨架、核心数据模型，以及受保护的私人维护后台。公开档案页面和地图将在后续步骤完成。
+
 ## 运行时
 
 - Node.js 24.21.0（见 `.node-version`）
@@ -22,6 +24,8 @@ pnpm dev
 ```
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
+
+本地后台位于 `http://127.0.0.1:4321/guillaume/`。认证旁路只会在 `astro dev` 的编译期开发模式启用，默认身份为 `local@atlas.invalid`；可复制 `.dev.vars.example` 为 `.dev.vars` 修改本地显示身份。请求参数、Cookie 或 Host 头均不能开启此旁路。
 
 本地 D1 数据保存在 `.wrangler/state/`，已从 Git 忽略。开发与检查不需要 Cloudflare 登录、生产数据库 ID 或任何生产凭据。
 
@@ -46,6 +50,32 @@ pnpm dev
 ## 生产 D1（尚未创建）
 
 `wrangler.jsonc` 中全零的 `database_id` 是安全的本地占位值。创建生产 D1 后，必须将其替换为 Cloudflare 返回的真实 ID，完成 migration 验证后才可运行生产命令或部署。不要把测试数据导入生产。
+
+## 私人后台与 Cloudflare Access
+
+后台页面和写接口均位于 `/guillaume/*`，不会出现在公共导航中。所有后台响应设置 `Cache-Control: no-store` 和 `X-Robots-Tag: noindex, nofollow`。
+
+生产环境必须同时配置：
+
+| 变量 | 内容 |
+| --- | --- |
+| `ACCESS_TEAM_DOMAIN` | 完整团队域名，例如 `https://example.cloudflareaccess.com` |
+| `ACCESS_AUD` | Atlas Access Application 的 Audience Tag |
+| `ADMIN_EMAIL` | 唯一允许维护 Atlas 的邮箱地址 |
+
+推荐用 Wrangler secret 或 Cloudflare 控制台配置这些值，不写入仓库。生产缺少任意配置时，后台以 503 关闭；JWT 缺失、伪造、过期、issuer/audience 不符或邮箱不匹配时返回 403。
+
+Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器请求可回退到 `CF_Authorization` Cookie。验证包含 Cloudflare 轮换公钥签名、RS256、issuer、audience、有效期和管理员邮箱。Cloudflare Access 策略仍应只允许本人，Worker 校验作为独立的源站权限边界。
+
+非读取型 `/guillaume/api/*` 请求必须带有与请求 URL 完全一致的 `Origin`，否则拒绝写入。接口仅接受 JSON，并统一返回字段错误、冲突、未找到或不含内部细节的服务器错误。
+
+后台功能包括：
+
+- Dashboard 总数、最近更新与新建入口。
+- Place 列表、新建、编辑和具有关联提示的删除。
+- Journey 列表、新建、编辑，以及删除前的级联影响确认。
+- Journey 内添加、修改、移除 Visit，并用上下按钮原子调整完整顺序。
+- 保存期间禁用重复提交；失败保留表单输入并显示字段或操作错误。
 
 ## 渲染边界
 

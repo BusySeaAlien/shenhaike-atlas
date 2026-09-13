@@ -1,0 +1,83 @@
+---
+import type { Place } from "../../types/domain";
+
+interface Props { place?: Place }
+const { place } = Astro.props;
+const action = place ? `/guillaume/api/places/${place.id}/` : "/guillaume/api/places/";
+const method = place ? "PATCH" : "POST";
+---
+
+<form class="admin-form" data-place-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field"><label for="slug">Slug *</label><input id="slug" name="slug" required value={place?.slug} /><span class="field-error" data-error="slug"></span></div>
+    <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={place?.name} /><span class="field-error" data-error="name"></span></div>
+    <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={place?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
+    <div class="field"><label for="country">Country *</label><input id="country" name="country" required value={place?.country} /><span class="field-error" data-error="country"></span></div>
+    <div class="field"><label for="region">Region</label><input id="region" name="region" value={place?.region ?? ""} /><span class="field-error" data-error="region"></span></div>
+    <div class="field"><label for="city">City</label><input id="city" name="city" value={place?.city ?? ""} /><span class="field-error" data-error="city"></span></div>
+    <div class="field"><label for="latitude">Latitude *</label><input id="latitude" name="latitude" type="number" step="any" required value={place?.latitude} /><span class="field-error" data-error="latitude"></span></div>
+    <div class="field"><label for="longitude">Longitude *</label><input id="longitude" name="longitude" type="number" step="any" required value={place?.longitude} /><span class="field-error" data-error="longitude"></span></div>
+    <div class="field wide"><label for="cover">Cover URL</label><input id="cover" name="cover" value={place?.cover ?? ""} /><span class="field-error" data-error="cover"></span></div>
+    <div class="field wide"><label for="description">Description</label><textarea id="description" name="description">{place?.description ?? ""}</textarea><span class="field-error" data-error="description"></span></div>
+  </div>
+  <div class="form-actions"><button type="submit">{place ? "Save place" : "Create place"}</button><a class="button secondary" href="/guillaume/places/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  place && (
+    <div class="danger-zone">
+      <p>有访问记录引用此地点时，删除会被拒绝。</p>
+      <button class="danger" type="button" data-delete-place data-action={`/guillaume/api/places/${place.id}/`}>Delete place</button>
+    </div>
+  )
+}
+
+<script>
+  interface ApiResult { error?: { message?: string; fields?: Record<string, string> } }
+  const form = document.querySelector<HTMLFormElement>("[data-place-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const payload = {
+      slug: data.get("slug"), name: data.get("name"), nameZh: data.get("nameZh"),
+      country: data.get("country"), region: data.get("region"), city: data.get("city"),
+      latitude: Number(data.get("latitude")), longitude: Number(data.get("longitude")),
+      cover: data.get("cover"), description: data.get("description"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign("/guillaume/places/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-place]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this place? This cannot be undone.")) return;
+    button.disabled = true;
+    const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+    const result = await response.json() as ApiResult;
+    if (response.ok) window.location.assign("/guillaume/places/");
+    else { window.alert(result.error?.message ?? "Delete failed"); button.disabled = false; }
+  });
+</script>

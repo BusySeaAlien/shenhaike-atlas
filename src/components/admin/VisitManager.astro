@@ -1,0 +1,147 @@
+---
+import type { Journey, Place, Visit } from "../../types/domain";
+
+interface Props { journey: Journey; places: Place[]; visits: Visit[] }
+const { journey, places, visits } = Astro.props;
+---
+
+<section class="admin-section" data-visit-manager data-journey-id={journey.id}>
+  <h2>Visits</h2>
+  <form class="add-visit" data-add-visit>
+    <h3>Add place</h3>
+    <div class="visit-form">
+      <select name="placeId" required aria-label="Place">
+        <option value="">Choose place</option>
+        {places.map((place) => <option value={place.id}>{place.nameZh || place.name}</option>)}
+      </select>
+      <input name="visitedAt" type="date" min={journey.startDate} max={journey.endDate} required aria-label="Visited date" />
+      <input name="notes" placeholder="Notes" aria-label="Notes" />
+      <button type="submit">Add</button>
+      <span class="visit-message" role="status"></span>
+    </div>
+  </form>
+
+  <div class="visit-list" data-visit-list>
+    {
+      visits.map((visit, index) => (
+        <article class="visit-card" data-visit-id={visit.id}>
+          <span class="visit-sequence">{String(index + 1).padStart(2, "0")}</span>
+          <form class="visit-form" data-edit-visit data-edit-id={visit.id}>
+            <select name="placeId" required aria-label="Place">
+              {places.map((place) => <option value={place.id} selected={place.id === visit.placeId}>{place.nameZh || place.name}</option>)}
+            </select>
+            <input name="visitedAt" type="date" min={journey.startDate} max={journey.endDate} required value={visit.visitedAt} aria-label="Visited date" />
+            <input name="notes" value={visit.notes ?? ""} placeholder="Notes" aria-label="Notes" />
+            <button type="submit" class="secondary">Save</button>
+            <span class="visit-message" role="status"></span>
+          </form>
+          <div class="visit-controls">
+            <button type="button" class="secondary" data-move="up" aria-label="Move up" disabled={index === 0}>↑</button>
+            <button type="button" class="secondary" data-move="down" aria-label="Move down" disabled={index === visits.length - 1}>↓</button>
+            <button type="button" class="danger" data-remove aria-label="Remove visit">×</button>
+          </div>
+        </article>
+      ))
+    }
+  </div>
+  {visits.length === 0 && <p class="empty-admin" data-empty-visits>No visits yet.</p>}
+</section>
+
+<script>
+  interface ApiResult { error?: { message?: string } }
+  const manager = document.querySelector<HTMLElement>("[data-visit-manager]");
+  const journeyId = Number(manager?.dataset.journeyId);
+
+  async function request(url: string, method: string, payload?: unknown) {
+    const response = await fetch(url, {
+      method,
+      headers: payload === undefined ? undefined : { "content-type": "application/json" },
+      body: payload === undefined ? undefined : JSON.stringify(payload),
+    });
+    const result = await response.json() as ApiResult;
+    if (!response.ok) throw new Error(result.error?.message ?? "Request failed");
+    return result;
+  }
+
+  manager?.querySelector<HTMLFormElement>("[data-add-visit]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const message = form.querySelector<HTMLElement>(".visit-message");
+    const count = manager.querySelectorAll("[data-visit-id]").length;
+    const data = new FormData(form);
+    if (button) button.disabled = true;
+    if (message) message.textContent = "Saving…";
+    try {
+      await request("/guillaume/api/visits/", "POST", {
+        placeId: Number(data.get("placeId")), journeyId,
+        visitedAt: data.get("visitedAt"), sequence: count + 1, notes: data.get("notes"),
+      });
+      window.location.reload();
+    } catch (error) {
+      if (message) message.textContent = error instanceof Error ? error.message : "Save failed";
+      if (button) button.disabled = false;
+    }
+  });
+
+  manager?.querySelectorAll<HTMLFormElement>("[data-edit-visit]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+      const message = form.querySelector<HTMLElement>(".visit-message");
+      const card = form.closest<HTMLElement>("[data-visit-id]");
+      const cards = [...(manager.querySelectorAll<HTMLElement>("[data-visit-id]") ?? [])];
+      const data = new FormData(form);
+      if (button) button.disabled = true;
+      if (message) message.textContent = "Saving…";
+      try {
+        await request(`/guillaume/api/visits/${form.dataset.editId}/`, "PATCH", {
+          placeId: Number(data.get("placeId")), journeyId,
+          visitedAt: data.get("visitedAt"), sequence: cards.indexOf(card as HTMLElement) + 1,
+          notes: data.get("notes"),
+        });
+        if (message) message.textContent = "Saved";
+      } catch (error) {
+        if (message) message.textContent = error instanceof Error ? error.message : "Save failed";
+      } finally {
+        if (button) button.disabled = false;
+      }
+    });
+  });
+
+  manager?.querySelectorAll<HTMLButtonElement>("[data-remove]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const card = button.closest<HTMLElement>("[data-visit-id]");
+      if (!card || !window.confirm("Remove this visit from the journey?")) return;
+      button.disabled = true;
+      try {
+        await request(`/guillaume/api/visits/${card.dataset.visitId}/`, "DELETE");
+        window.location.reload();
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Remove failed");
+        button.disabled = false;
+      }
+    });
+  });
+
+  manager?.querySelectorAll<HTMLButtonElement>("[data-move]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const card = button.closest<HTMLElement>("[data-visit-id]");
+      const list = manager.querySelector<HTMLElement>("[data-visit-list]");
+      if (!card || !list) return;
+      const sibling = button.dataset.move === "up" ? card.previousElementSibling : card.nextElementSibling;
+      if (!(sibling instanceof HTMLElement)) return;
+      button.disabled = true;
+      if (button.dataset.move === "up") list.insertBefore(card, sibling);
+      else list.insertBefore(sibling, card);
+      const visitIds = [...list.querySelectorAll<HTMLElement>("[data-visit-id]")].map((item) => Number(item.dataset.visitId));
+      try {
+        await request(`/guillaume/api/journeys/${journeyId}/order/`, "PATCH", { visitIds });
+        window.location.reload();
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Reorder failed");
+        window.location.reload();
+      }
+    });
+  });
+</script>

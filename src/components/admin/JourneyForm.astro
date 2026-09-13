@@ -1,0 +1,79 @@
+---
+import type { Journey } from "../../types/domain";
+
+interface Props { journey?: Journey }
+const { journey } = Astro.props;
+const action = journey ? `/guillaume/api/journeys/${journey.id}/` : "/guillaume/api/journeys/";
+const method = journey ? "PATCH" : "POST";
+---
+
+<form class="admin-form" data-journey-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field"><label for="slug">Slug *</label><input id="slug" name="slug" required value={journey?.slug} /><span class="field-error" data-error="slug"></span></div>
+    <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={journey?.name} /><span class="field-error" data-error="name"></span></div>
+    <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={journey?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
+    <div class="field"><label for="startDate">Start date *</label><input id="startDate" name="startDate" type="date" required value={journey?.startDate} /><span class="field-error" data-error="startDate"></span></div>
+    <div class="field"><label for="endDate">End date *</label><input id="endDate" name="endDate" type="date" required value={journey?.endDate} /><span class="field-error" data-error="endDate"></span></div>
+    <div class="field wide"><label for="cover">Cover URL</label><input id="cover" name="cover" value={journey?.cover ?? ""} /><span class="field-error" data-error="cover"></span></div>
+    <div class="field wide"><label for="description">Description</label><textarea id="description" name="description">{journey?.description ?? ""}</textarea><span class="field-error" data-error="description"></span></div>
+  </div>
+  <div class="form-actions"><button type="submit">{journey ? "Save journey" : "Create journey"}</button><a class="button secondary" href="/guillaume/journeys/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  journey && (
+    <div class="danger-zone">
+      <p>删除旅程会同时删除其全部访问记录，但保留地点。</p>
+      <button class="danger" type="button" data-delete-journey data-action={`/guillaume/api/journeys/${journey.id}/`}>Delete journey</button>
+    </div>
+  )
+}
+
+<script>
+  interface ApiResult { data?: { id: number }; error?: { message?: string; fields?: Record<string, string> } }
+  const form = document.querySelector<HTMLFormElement>("[data-journey-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const payload = {
+      slug: data.get("slug"), name: data.get("name"), nameZh: data.get("nameZh"),
+      startDate: data.get("startDate"), endDate: data.get("endDate"),
+      cover: data.get("cover"), description: data.get("description"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign(result.data ? `/guillaume/journeys/${result.data.id}/` : "/guillaume/journeys/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-journey]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this journey and all of its visits? Places will be kept.")) return;
+    button.disabled = true;
+    const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+    const result = await response.json() as ApiResult;
+    if (response.ok) window.location.assign("/guillaume/journeys/");
+    else { window.alert(result.error?.message ?? "Delete failed"); button.disabled = false; }
+  });
+</script>

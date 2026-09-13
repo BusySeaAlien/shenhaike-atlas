@@ -1,0 +1,20 @@
+---
+import JourneyForm from "../../../components/admin/JourneyForm.astro";
+import VisitManager from "../../../components/admin/VisitManager.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { getJourneyById } from "../../../lib/db/journeys";
+import { listPlaces } from "../../../lib/db/places";
+import { listJourneyVisits } from "../../../lib/db/visits";
+
+const id = Number(Astro.params.id);
+const db = getDatabase();
+const journey = Number.isInteger(id) && id > 0 ? await getJourneyById(db, id) : null;
+if (!journey) Astro.response.status = 404;
+const places = journey ? await listPlaces(db) : [];
+const visits = journey ? await listJourneyVisits(db, journey.id) : [];
+---
+
+<AdminLayout title={journey ? `Edit ${journey.name}` : "Journey not found"}>
+  {journey ? <><div class="admin-heading"><div><p class="eyebrow">JOURNEYS / EDIT</p><h1>{journey.nameZh || journey.name}</h1></div></div><JourneyForm journey={journey} /><VisitManager journey={journey} places={places} visits={visits} /></> : <p class="empty-admin">Journey not found.</p>}
+</AdminLayout>

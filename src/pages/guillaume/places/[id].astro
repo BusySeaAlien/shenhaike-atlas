@@ -1,0 +1,14 @@
+---
+import PlaceForm from "../../../components/admin/PlaceForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { getPlaceById } from "../../../lib/db/places";
+
+const id = Number(Astro.params.id);
+const place = Number.isInteger(id) && id > 0 ? await getPlaceById(getDatabase(), id) : null;
+if (!place) Astro.response.status = 404;
+---
+
+<AdminLayout title={place ? `Edit ${place.name}` : "Place not found"}>
+  {place ? <><div class="admin-heading"><div><p class="eyebrow">PLACES / EDIT</p><h1>{place.nameZh || place.name}</h1></div></div><PlaceForm place={place} /></> : <p class="empty-admin">Place not found.</p>}
+</AdminLayout>

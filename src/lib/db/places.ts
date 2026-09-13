@@ -30,6 +30,14 @@ export async function getPlaceBySlug(db: D1Database, slug: string): Promise<Plac
   return row ? toPlace(row) : null;
 }
 
+export async function getPlaceById(db: D1Database, id: number): Promise<Place | null> {
+  const row = await db
+    .prepare(`SELECT ${PLACE_COLUMNS} FROM places WHERE id = ?1`)
+    .bind(id)
+    .first<PlaceRow>();
+  return row ? toPlace(row) : null;
+}
+
 export async function createPlace(db: D1Database, input: PlaceInput): Promise<Place> {
   const value = validated(input);
   try {
