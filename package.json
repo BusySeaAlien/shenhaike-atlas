@@ -11,9 +11,13 @@
     "dev": "wrangler types && astro dev --host 127.0.0.1",
     "check": "wrangler types && astro check",
     "build": "wrangler types && astro build",
+    "test": "vitest run",
+    "test:database": "node scripts/verify-database.mjs",
+    "verify": "pnpm test && pnpm test:database && pnpm check && pnpm build",
     "preview": "wrangler types && astro preview --host 127.0.0.1",
     "db:migrate:local": "wrangler d1 migrations apply atlas --local",
     "db:migrate:production": "wrangler d1 migrations apply atlas --remote",
+    "db:seed:local": "wrangler d1 execute atlas --local --file=./seed.sql",
     "db:query:local": "wrangler d1 execute atlas --local --command",
     "db:query:production": "wrangler d1 execute atlas --remote --command",
     "types": "wrangler types"
@@ -26,6 +30,7 @@
     "@astrojs/check": "0.9.10",
     "@types/node": "24.10.0",
     "typescript": "5.9.3",
+    "vitest": "5.0.0",
     "wrangler": "4.131.1"
   }
 }

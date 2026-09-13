@@ -17,6 +17,7 @@ Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与
 ```sh
 pnpm install --frozen-lockfile
 pnpm db:migrate:local
+pnpm db:seed:local
 pnpm dev
 ```
 
@@ -31,8 +32,12 @@ pnpm dev
 | `pnpm dev` | 生成 binding 类型并启动本地开发服务 |
 | `pnpm check` | 生成 binding 类型并运行 Astro/TypeScript 检查 |
 | `pnpm build` | 生成 binding 类型并构建 Cloudflare Worker |
+| `pnpm test` | 运行领域校验和原子排序单元测试 |
+| `pnpm test:database` | 在隔离 local D1 中验证 migration、seed 与数据库约束 |
+| `pnpm verify` | 依次运行全部测试、检查和构建 |
 | `pnpm preview` | 在本地 Workers 运行时预览生产构建 |
 | `pnpm db:migrate:local` | 仅将 migrations 应用到 local D1 |
+| `pnpm db:seed:local` | 仅将开发 seed 导入 local D1 |
 | `pnpm db:migrate:production` | 明确将 migrations 应用到远程生产 D1 |
 | `pnpm types` | 从 Wrangler 配置生成 Cloudflare binding 类型 |
 
@@ -68,3 +73,13 @@ scripts/                 # 一次性维护脚本
 ```
 
 Atlas 从 Home 与 Lens 延续了宋体标题、克制留白、低饱和纸张色和细分隔线，但样式完全保存在本仓库，不依赖跨仓库共享包。
+
+## 数据模型与规则
+
+- `places` 保存 WGS84 经纬度；`journeys` 保存起止日历日期；`visits` 连接两者并保存访问日期和顺序。
+- Place 与 Journey 的 slug 分别唯一。Visit 必须引用有效记录，且访问日期必须位于旅程日期范围内。
+- 同一 Place 可以在同一或不同 Journey 中重复访问；不设置 Place/Journey 组合唯一约束。
+- Journey 内的 `sequence` 唯一。排序通过 D1 `batch()` 整体提交，任何语句失败时整批回滚。
+- 删除被 Visit 引用的 Place 会被拒绝；删除 Journey 会级联删除其 Visits，但保留 Places。
+- 表单输入由服务端校验层检查必填值、长度、slug、真实日历日期、坐标、日期范围与外键，数据库约束和 trigger 提供最终保护。
+- `seed.sql` 包含重复访问、同一旅程重复地点、跨年旅程及空旅程，只允许通过 `db:seed:local` 导入本地环境。
