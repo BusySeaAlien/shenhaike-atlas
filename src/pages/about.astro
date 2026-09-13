@@ -1,14 +1,14 @@
 ---
 export const prerender = true;
-
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
-<BaseLayout title="About — Atlas">
-  <article class="prose">
-    <p class="eyebrow">ABOUT</p>
-    <h1>地点，是另一种索引。</h1>
-    <p>Atlas 是深海客的个人地理档案，用地点连接文字、影像与一次次旅程。</p>
-    <p><a href="https://shenhaike.com">Home</a> · <a href="https://ink.shenhaike.com">Ink</a> · <a href="https://lens.shenhaike.com">Lens</a></p>
+<BaseLayout title="About — Atlas" description="Atlas 是深海客的个人地理档案。">
+  <article class="prose about-page">
+    <p class="eyebrow">ABOUT / ATLAS</p>
+    <h1>Places live here.</h1>
+    <p>Atlas 是一份个人地理档案。它记录去过的地点、一次次旅程，以及时间在坐标上留下的关系。</p>
+    <p>它不是旅行攻略，也不是目的地清单。这里保存的是发生过的路径：从一个地方出发，在另一个地方停留，然后再次回来。</p>
+    <div class="archive-family"><a href="https://shenhaike.com"><strong>Home</strong><span>入口</span></a><a href="https://ink.shenhaike.com"><strong>Ink</strong><span>Words</span></a><a href="https://lens.shenhaike.com"><strong>Lens</strong><span>Images</span></a></div>
   </article>
 </BaseLayout>

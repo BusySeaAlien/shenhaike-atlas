@@ -1,0 +1,24 @@
+---
+import DataFailure from "../../components/DataFailure.astro";
+import JourneyCard from "../../components/JourneyCard.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getDatabase } from "../../lib/db/client";
+import { listJourneySummaries } from "../../lib/db/public";
+
+let journeys: Awaited<ReturnType<typeof listJourneySummaries>> = [];
+let failed = false;
+try {
+  journeys = await listJourneySummaries(getDatabase());
+} catch {
+  failed = true;
+  Astro.response.status = 503;
+}
+const grouped = Object.entries(Object.groupBy(journeys, (journey) => journey.startDate.slice(0, 4))).sort(([a], [b]) => b.localeCompare(a));
+---
+
+<BaseLayout title="Journeys — Atlas" description="Atlas 中按年份组织的旅程档案。">
+  {failed ? <DataFailure /> : <div class="archive-page">
+    <header class="archive-header"><p class="eyebrow">ARCHIVE / JOURNEYS</p><h1>Journeys</h1><p>一次完整的离开、经过与返回。</p></header>
+    {grouped.length ? grouped.map(([year, items]) => <section class="year-group"><p class="year-label">{year}</p><div class="journey-grid">{items?.map((journey, index) => <JourneyCard journey={journey} index={index} />)}</div></section>) : <p class="archive-empty">No journeys yet.</p>}
+  </div>}
+</BaseLayout>

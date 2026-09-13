@@ -1,0 +1,42 @@
+---
+import DataFailure from "../../components/DataFailure.astro";
+import NotFound from "../../components/NotFound.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { inclusiveDayCount } from "../../lib/dates";
+import { getDatabase } from "../../lib/db/client";
+import { getJourneyDetail } from "../../lib/db/public";
+
+let detail: Awaited<ReturnType<typeof getJourneyDetail>> = null;
+let failed = false;
+try {
+  detail = await getJourneyDetail(getDatabase(), Astro.params.slug ?? "");
+  if (!detail) Astro.response.status = 404;
+} catch {
+  failed = true;
+  Astro.response.status = 503;
+}
+const journey = detail?.journey;
+const placeCount = detail ? new Set(detail.visits.map((visit) => visit.placeId)).size : 0;
+const dayCount = journey ? inclusiveDayCount(journey.startDate, journey.endDate) : 0;
+const dayLabel = dayCount === 1 ? "day" : "days";
+const placeLabel = placeCount === 1 ? "place" : "places";
+const visitLabel = detail?.visits.length === 1 ? "visit" : "visits";
+const title = journey ? `${journey.nameZh || journey.name} — Atlas` : failed ? "Archive unavailable — Atlas" : "Journey not found — Atlas";
+---
+
+<BaseLayout title={title} description={journey?.description ?? "Atlas 旅程档案。"}>
+  {failed ? <DataFailure /> : detail && journey ? <article class="detail-page journey-detail">
+    <header class="detail-header">
+      <p class="eyebrow">JOURNEY / {journey.startDate.slice(0, 4)}</p>
+      <h1>{journey.nameZh || journey.name}</h1>
+      {journey.nameZh && <p class="detail-english">{journey.name}</p>}
+      <p class="journey-dates"><time datetime={journey.startDate}>{journey.startDate}</time><span>—</span><time datetime={journey.endDate}>{journey.endDate}</time></p>
+      <p class="detail-coordinate">{dayCount} {dayLabel} · {placeCount} {placeLabel} · {detail.visits.length} {visitLabel}</p>
+    </header>
+    {journey.description && <div class="detail-description"><p>{journey.description}</p></div>}
+    <section class="route-section" aria-labelledby="route-heading">
+      <div class="section-heading"><div><p class="eyebrow">SEQUENCE</p><h2 id="route-heading">Route</h2></div></div>
+      {detail.visits.length ? <ol class="route-list">{detail.visits.map((visit, index) => <li><span class="route-number">{String(index + 1).padStart(2, "0")}</span><div class="route-point" aria-hidden="true"></div><div><time datetime={visit.visitedAt}>{visit.visitedAt}</time><h3><a href={`/places/${visit.placeSlug}/`}>{visit.placeNameZh || visit.placeName}</a></h3>{visit.placeNameZh && <p class="english-name">{visit.placeName}</p>}{visit.notes && <p class="route-notes">{visit.notes}</p>}<small>{visit.latitude.toFixed(4)} · {visit.longitude.toFixed(4)}</small></div></li>)}</ol> : <p class="archive-empty">No visits in this journey yet.</p>}
+    </section>
+  </article> : <NotFound noun="Journey" />}
+</BaseLayout>

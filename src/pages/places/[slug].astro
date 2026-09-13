@@ -1,0 +1,37 @@
+---
+import DataFailure from "../../components/DataFailure.astro";
+import NotFound from "../../components/NotFound.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getDatabase } from "../../lib/db/client";
+import { getPlaceDetail } from "../../lib/db/public";
+
+let detail: Awaited<ReturnType<typeof getPlaceDetail>> = null;
+let failed = false;
+try {
+  detail = await getPlaceDetail(getDatabase(), Astro.params.slug ?? "");
+  if (!detail) Astro.response.status = 404;
+} catch {
+  failed = true;
+  Astro.response.status = 503;
+}
+const place = detail?.place;
+const recordLabel = detail?.visits.length === 1 ? "record" : "records";
+const title = place ? `${place.nameZh || place.name} — Atlas` : failed ? "Archive unavailable — Atlas" : "Place not found — Atlas";
+---
+
+<BaseLayout title={title} description={place?.description ?? "Atlas 地点档案。"}>
+  {failed ? <DataFailure /> : detail && place ? <article class="detail-page">
+    <header class="detail-header">
+      <p class="eyebrow">PLACE / {place.country.toUpperCase()}</p>
+      <h1>{place.nameZh || place.name}</h1>
+      {place.nameZh && <p class="detail-english">{place.name}</p>}
+      <p class="detail-location">{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</p>
+      <p class="detail-coordinate">{place.latitude.toFixed(5)}° · {place.longitude.toFixed(5)}°</p>
+    </header>
+    {place.description && <div class="detail-description"><p>{place.description}</p></div>}
+    <section class="detail-section" aria-labelledby="visits-heading">
+      <div class="section-heading"><div><p class="eyebrow">HISTORY</p><h2 id="visits-heading">Visited</h2></div><span>{detail.visits.length} {recordLabel}</span></div>
+      {detail.visits.length ? <ol class="visit-history">{detail.visits.map((visit, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><time datetime={visit.visitedAt}>{visit.visitedAt}</time><div><a href={`/journeys/${visit.journeySlug}/`}>{visit.journeyNameZh || visit.journeyName}</a>{visit.notes && <p>{visit.notes}</p>}</div></li>)}</ol> : <p class="archive-empty">No visits recorded for this place.</p>}
+    </section>
+  </article> : <NotFound noun="Place" />}
+</BaseLayout>

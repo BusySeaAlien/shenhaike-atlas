@@ -83,4 +83,48 @@ export interface MapPoint {
   latitude: number;
   longitude: number;
   href: string;
+  lastVisitedAt: string;
+  visitCount: number;
+}
+
+export interface VisitedPlaceSummary extends Place {
+  lastVisitedAt: string;
+  visitCount: number;
+}
+
+export interface JourneySummary extends Journey {
+  placeCount: number;
+  visitCount: number;
+  dayCount: number;
+}
+
+export interface PlaceVisit extends Visit {
+  journeySlug: string;
+  journeyName: string;
+  journeyNameZh: string | null;
+}
+
+export interface JourneyVisit extends Visit {
+  placeSlug: string;
+  placeName: string;
+  placeNameZh: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export interface TimelineVisit extends JourneyVisit {
+  journeySlug: string;
+  journeyName: string;
+  journeyNameZh: string | null;
+}
+
+export interface HomeData {
+  mapPoints: MapPoint[];
+  recentPlaces: VisitedPlaceSummary[];
+  journeys: JourneySummary[];
+  stats: {
+    places: number;
+    journeys: number;
+    regions: number;
+  };
 }

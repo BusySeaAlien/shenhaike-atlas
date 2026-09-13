@@ -1,0 +1,24 @@
+---
+import DataFailure from "../components/DataFailure.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { monthFromDate } from "../lib/dates";
+import { getDatabase } from "../lib/db/client";
+import { listTimeline } from "../lib/db/public";
+
+let visits: Awaited<ReturnType<typeof listTimeline>> = [];
+let failed = false;
+try {
+  visits = await listTimeline(getDatabase());
+} catch {
+  failed = true;
+  Astro.response.status = 503;
+}
+const grouped = Object.entries(Object.groupBy(visits, (visit) => monthFromDate(visit.visitedAt))).sort(([a], [b]) => b.localeCompare(a));
+---
+
+<BaseLayout title="Timeline — Atlas" description="从最近一次访问开始浏览 Atlas 的时间轴。">
+  {failed ? <DataFailure /> : <div class="archive-page timeline-page">
+    <header class="archive-header"><p class="eyebrow">ARCHIVE / TIME</p><h1>Timeline</h1><p>地点沿时间倒序展开。</p></header>
+    {grouped.length ? grouped.map(([month, items]) => <section class="timeline-month"><h2>{month}</h2><ol>{items?.map((visit) => <li><time datetime={visit.visitedAt}>{visit.visitedAt.slice(8, 10)}</time><div><h3><a href={`/places/${visit.placeSlug}/`}>{visit.placeNameZh || visit.placeName}</a></h3>{visit.placeNameZh && <p class="english-name">{visit.placeName}</p>}<p>in <a href={`/journeys/${visit.journeySlug}/`}>{visit.journeyNameZh || visit.journeyName}</a></p>{visit.notes && <blockquote>{visit.notes}</blockquote>}</div></li>)}</ol></section>) : <p class="archive-empty">No visits yet.</p>}
+  </div>}
+</BaseLayout>

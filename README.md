@@ -2,7 +2,7 @@
 
 Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与 Cloudflare D1。
 
-当前已完成实施细则前三步：应用与 local D1 骨架、核心数据模型，以及受保护的私人维护后台。公开档案页面和地图将在后续步骤完成。
+当前已完成实施细则前四步：应用与 local D1 骨架、核心数据模型、受保护的私人维护后台，以及与 D1 实时联动的公开档案页面。交互地图和生产部署将在后续步骤完成。
 
 ## 运行时
 
@@ -24,6 +24,8 @@ pnpm dev
 ```
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
+
+公开档案包含首页地图预览与摘要、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。地图预览在本阶段保留为可访问的静态点位与列表，筛选、缩放和点位交互将在第五步完成。
 
 本地后台位于 `http://127.0.0.1:4321/guillaume/`。认证旁路只会在 `astro dev` 的编译期开发模式启用，默认身份为 `local@atlas.invalid`；可复制 `.dev.vars.example` 为 `.dev.vars` 修改本地显示身份。请求参数、Cookie 或 Host 头均不能开启此旁路。
 
@@ -80,9 +82,16 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 ## 渲染边界
 
 - `/about/` 显式预渲染为静态页面，`public/` 资源由静态资源层提供。
-- 首页及未来的地点、旅程、时间轴页面使用按请求渲染。
+- 首页、地点、旅程和时间轴页面使用按请求渲染，并设置 `Cache-Control: no-store`，后台保存后下一次读取即反映最新 D1 数据。
 - `/system/database/` 在服务端直接调用共享数据库查询层，不通过 HTTP 请求自身 API，也不缓存响应。
 - 公开 API 只会在地图交互等浏览器端确有需要时增加。
+
+公开查询规则如下：
+
+- 首页 Places 只统计至少到访一次的不同地点，Journeys 只统计至少包含一次访问的旅程，Regions 按非空国家与地区组合去重。
+- 最近地点按最后到访日期倒序排列并按地点去重；旅程分别展示不同地点数和 Visit 总数，天数包含首尾日期。
+- `/journeys/` 保留空旅程；无 Visit 的地点和旅程详情显示空状态，但不会进入首页地图或已到访统计。
+- 未知 slug 返回真实 404；D1 查询失败返回不泄露内部异常的 503 页面。公开页面均提供描述、规范 URL 和 Open Graph 元数据。
 
 ## 目录
 

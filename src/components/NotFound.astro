@@ -1,0 +1,6 @@
+---
+interface Props { noun?: string }
+const { noun = "Page" } = Astro.props;
+---
+
+<section class="public-state"><p class="eyebrow">ATLAS / 404</p><h1>{noun} not found</h1><p>这个坐标不在当前档案中。</p><a href="/">Return to Atlas</a></section>

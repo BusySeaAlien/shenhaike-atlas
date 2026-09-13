@@ -1,0 +1,26 @@
+---
+import type { MapPoint } from "../types/domain";
+
+interface Props { points: MapPoint[] }
+const { points } = Astro.props;
+---
+
+<section class="map-preview" aria-labelledby="map-heading">
+  <div class="section-heading"><div><p class="eyebrow">MAP / VISITED PLACES</p><h2 id="map-heading">Coordinates</h2></div><span>{String(points.length).padStart(2, "0")} points</span></div>
+  {
+    points.length ? (
+      <div class="map-frame" data-map-container>
+        <div class="map-grid" aria-hidden="true"></div>
+        {points.map((point, index) => {
+          const x = ((point.longitude + 180) / 360) * 100;
+          const y = ((90 - point.latitude) / 180) * 100;
+          return <a class="map-dot" href={point.href} style={`--x:${x}%;--y:${y}%`} aria-label={`${point.name}，访问 ${point.visitCount} 次`}><span>{index + 1}</span></a>;
+        })}
+        <p class="map-caption">GEOGRAPHIC INDEX · INTERACTIVE MAP IN NEXT PHASE</p>
+      </div>
+    ) : (
+      <div class="map-empty"><p>No visited places yet.</p><span>Coordinates will appear after the first visit is recorded.</span></div>
+    )
+  }
+  {points.length > 0 && <ol class="map-index">{points.map((point, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><a href={point.href}>{point.name}</a><time datetime={point.lastVisitedAt}>{point.lastVisitedAt}</time></li>)}</ol>}
+</section>

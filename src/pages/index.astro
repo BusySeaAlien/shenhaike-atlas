@@ -1,19 +1,41 @@
 ---
 import CoordinateMark from "../components/CoordinateMark.astro";
+import DataFailure from "../components/DataFailure.astro";
+import JourneyCard from "../components/JourneyCard.astro";
+import MapArchivePreview from "../components/MapArchivePreview.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { getDatabase } from "../lib/db/client";
+import { getHomeData } from "../lib/db/public";
+
+let data: Awaited<ReturnType<typeof getHomeData>> | null = null;
+try {
+  data = await getHomeData(getDatabase());
+} catch {
+  Astro.response.status = 503;
+}
 ---
 
-<BaseLayout>
-  <section class="hero">
-    <p class="eyebrow">PERSONAL GEOGRAPHIC ARCHIVE · 001</p>
-    <h1>Atlas</h1>
-    <p class="lede">记录地点、旅程，以及时间在坐标上留下的痕迹。</p>
-    <CoordinateMark latitude="31.2304° N" longitude="121.4737° E" />
-  </section>
-  <section class="status-panel" aria-labelledby="status-heading">
-    <p class="section-number">00 / FOUNDATION</p>
-    <h2 id="status-heading">档案正在建立</h2>
-    <p>应用骨架已就位。地点、旅程与时间轴将在后续步骤中逐步开放。</p>
-    <a href="/system/database/">检查本地数据库 <span aria-hidden="true">↗</span></a>
-  </section>
+<BaseLayout description="Atlas 是深海客的个人地理档案，记录去过的地点、旅程与时间。">
+  {data ? <>
+    <section class="hero home-hero">
+      <p class="eyebrow">PERSONAL GEOGRAPHIC ARCHIVE · 001</p>
+      <h1>Atlas</h1>
+      <p class="lede">Places I have been,<br />and the paths between them.</p>
+      <CoordinateMark latitude="31.2304° N" longitude="121.4737° E" />
+    </section>
+    <MapArchivePreview points={data.mapPoints} />
+    <section class="home-section" aria-labelledby="journeys-heading">
+      <div class="section-heading"><div><p class="eyebrow">JOURNEYS / RECENT</p><h2 id="journeys-heading">Journeys</h2></div><a href="/journeys/">View all ↗</a></div>
+      {data.journeys.length ? <div class="journey-grid">{data.journeys.slice(0, 3).map((journey, index) => <JourneyCard journey={journey} index={index} />)}</div> : <p class="archive-empty">No journeys yet.</p>}
+    </section>
+    <section class="home-section" aria-labelledby="recent-heading">
+      <div class="section-heading"><div><p class="eyebrow">PLACES / LAST VISITED</p><h2 id="recent-heading">Recent Places</h2></div></div>
+      {data.recentPlaces.length ? <ol class="place-list">{data.recentPlaces.map((place, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><div><a href={`/places/${place.slug}/`}>{place.nameZh || place.name}</a>{place.nameZh && <small>{place.name}</small>}</div><p>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</p><time datetime={place.lastVisitedAt}>{place.lastVisitedAt}</time></li>)}</ol> : <p class="archive-empty">No visited places yet.</p>}
+    </section>
+    <section class="stats" aria-label="Archive statistics">
+      <div><strong>{data.stats.places}</strong><span>Places</span></div>
+      <div><strong>{data.stats.journeys}</strong><span>Journeys</span></div>
+      <div><strong>{data.stats.regions}</strong><span>Regions</span></div>
+    </section>
+  </> : <DataFailure />}
 </BaseLayout>

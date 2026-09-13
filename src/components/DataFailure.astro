@@ -1,0 +1,6 @@
+---
+interface Props { title?: string }
+const { title = "Archive temporarily unavailable" } = Astro.props;
+---
+
+<section class="public-state" role="alert"><p class="eyebrow">SYSTEM / 503</p><h1>{title}</h1><p>地理档案暂时无法读取，请稍后再试。</p><a href="/">Return to Atlas</a></section>

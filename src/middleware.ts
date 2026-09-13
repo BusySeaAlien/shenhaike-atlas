@@ -22,7 +22,18 @@ function denied(message: string, status: number, api: boolean): Response {
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const pathname = context.url.pathname;
-  if (pathname !== "/guillaume" && !pathname.startsWith("/guillaume/")) return next();
+  if (pathname !== "/guillaume" && !pathname.startsWith("/guillaume/")) {
+    const response = await next();
+    const dynamicArchiveRoute =
+      pathname === "/" ||
+      pathname === "/journeys" ||
+      pathname.startsWith("/journeys/") ||
+      pathname === "/timeline" ||
+      pathname === "/timeline/" ||
+      pathname.startsWith("/places/");
+    if (dynamicArchiveRoute) response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
 
   const api = pathname.startsWith("/guillaume/api/");
   try {

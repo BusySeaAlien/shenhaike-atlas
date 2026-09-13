@@ -4,12 +4,15 @@ import "../styles/global.css";
 interface Props {
   title?: string;
   description?: string;
+  canonicalPath?: string;
 }
 
 const {
   title = "Atlas — 深海客",
   description = "Personal Geographic Archive · 个人地理档案",
+  canonicalPath = Astro.url.pathname,
 } = Astro.props;
+const canonical = new URL(canonicalPath, Astro.site ?? Astro.url.origin);
 ---
 
 <!doctype html>
@@ -19,6 +22,11 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="color-scheme" content="light" />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content="website" />
     <title>{title}</title>
   </head>
   <body>
@@ -32,6 +40,8 @@ const {
         </div>
         <nav aria-label="主导航">
           <a href="/">Map</a>
+          <a href="/journeys/">Journeys</a>
+          <a href="/timeline/">Timeline</a>
           <a href="/about/">About</a>
           <a href="https://shenhaike.com">Home</a>
         </nav>
