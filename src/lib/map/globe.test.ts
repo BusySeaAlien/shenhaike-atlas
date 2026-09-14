@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { MapJourneyRoute, MapPoint } from "../../types/domain";
 import {
-  GLOBE_CAMERAS,
+  CHINA_OVERVIEW_BOUNDS,
+  WORLD_CAMERA,
   GLOBE_ROTATION,
   isChinaCountry,
   nightHemisphereGeoJson,
@@ -33,11 +34,18 @@ describe("globe data helpers", () => {
   });
 
   it("starts with China facing the viewer and rotates eastward to move the surface west", () => {
-    expect(GLOBE_CAMERAS.world.center).toEqual([104, 24]);
-    expect(GLOBE_CAMERAS.china.center).toEqual([104, 35]);
-    expect(GLOBE_CAMERAS.china.zoom).toBeGreaterThan(GLOBE_CAMERAS.world.zoom);
+    expect(WORLD_CAMERA.center).toEqual([104, 24]);
+    expect(WORLD_CAMERA.zoom).toBeGreaterThan(1);
     expect(GLOBE_ROTATION.degreesPerSecond).toBeGreaterThan(0);
     expect(GLOBE_ROTATION.idleDelay).toBe(1_000);
+  });
+
+  it("frames the mainland and the South China Sea together in China mode", () => {
+    const [[west, south], [east, north]] = CHINA_OVERVIEW_BOUNDS;
+    expect(west).toBeLessThanOrEqual(74);
+    expect(east).toBeGreaterThanOrEqual(135);
+    expect(north).toBeGreaterThanOrEqual(53);
+    expect(south).toBeLessThanOrEqual(4);
   });
 
   it("builds a current night hemisphere around the solar antipode", () => {

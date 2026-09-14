@@ -10,3 +10,6 @@ dist/
 !.env.example
 .DS_Store
 worker-configuration.d.ts
+
+# 原始 GIS 数据：体积大、来源待确认，不提交（见 src/lib/map/boundaries/data/README.md）
+data-source/

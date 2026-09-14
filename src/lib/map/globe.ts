@@ -4,10 +4,24 @@ export type GlobeMode = "world" | "china";
 type Coordinate = [number, number];
 export type NightLightPoint = [longitude: number, latitude: number, brightness: number];
 
-export const GLOBE_CAMERAS = {
-  world: { center: [104, 24] as Coordinate, zoom: 1.9 },
-  china: { center: [104, 35] as Coordinate, zoom: 3.45 },
-} as const;
+export const WORLD_CAMERA = { center: [104, 24] as Coordinate, zoom: 1.9 } as const;
+
+/**
+ * China mode must hold the mainland and the South China Sea at once, so it
+ * frames a bounds box rather than a fixed centre and zoom — a fixed camera
+ * cannot keep 曾母暗沙 on screen across window aspect ratios.
+ *
+ * Tuning against the real page is Phase 3 work.
+ *
+ * @see Atlas 中国国境线数据落地与实施文档.md §21-§23
+ */
+export const CHINA_OVERVIEW_BOUNDS: [[number, number], [number, number]] = [
+  [73, 3],
+  [135, 54],
+];
+
+/** Right padding clears the orbit label that overlays the canvas. */
+export const CHINA_OVERVIEW_PADDING = { top: 20, right: 56, bottom: 20, left: 20 } as const;
 
 export const GLOBE_ROTATION = {
   degreesPerSecond: 0.7,

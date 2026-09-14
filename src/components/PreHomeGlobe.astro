@@ -70,10 +70,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 <script>
   import * as maplibregl from "maplibre-gl";
   import type { GeoJSONSource, MapEventType, MapLayerMouseEvent } from "maplibre-gl";
+  import { ensureChinaBoundaryLoaded, hideChinaBoundary, showChinaBoundary } from "../lib/map/boundaries/china";
   import { CLUSTER_RADIUS_EXPRESSION, GLOBE_STYLE, PLACE_CLUSTER_OPTIONS } from "../lib/map/config";
   import {
-    GLOBE_CAMERAS,
+    CHINA_OVERVIEW_BOUNDS,
+    CHINA_OVERVIEW_PADDING,
     GLOBE_ROTATION,
+    WORLD_CAMERA,
     journeyLineGeoJson,
     journeyStopsGeoJson,
     nightHemisphereGeoJson,
@@ -222,16 +225,27 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       (map.getSource("globe-places") as GeoJSONSource | undefined)?.setData(pointGeoJson(pointsForMode(points, mode)));
       updateJourney();
       pauseRotation();
-      const camera = GLOBE_CAMERAS[mode];
-      map.easeTo({ ...camera, bearing: 0, pitch: 0, duration: reducedMotion.matches ? 0 : 950 });
+      const duration = reducedMotion.matches ? 0 : 950;
+      if (mode === "china") {
+        void ensureChinaBoundaryLoaded(map)
+          .then(() => {
+            // The mode may have flipped back while the boundary chunks loaded.
+            if (mode === "china") showChinaBoundary(map);
+          })
+          .catch((error) => console.warn("Atlas China boundary unavailable", error));
+        map.fitBounds(CHINA_OVERVIEW_BOUNDS, { padding: CHINA_OVERVIEW_PADDING, bearing: 0, pitch: 0, duration });
+      } else {
+        hideChinaBoundary(map);
+        map.easeTo({ ...WORLD_CAMERA, bearing: 0, pitch: 0, duration });
+      }
     };
 
     try {
       map = new maplibregl.Map({
         container: canvas,
         style: GLOBE_STYLE,
-        center: GLOBE_CAMERAS.world.center,
-        zoom: GLOBE_CAMERAS.world.zoom,
+        center: WORLD_CAMERA.center,
+        zoom: WORLD_CAMERA.zoom,
         minZoom: 0.7,
         maxPitch: 0,
         attributionControl: false,

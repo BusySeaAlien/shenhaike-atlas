@@ -21,6 +21,7 @@
     "db:query:local": "wrangler d1 execute atlas --local --command",
     "db:query:production": "wrangler d1 execute atlas --remote --command",
     "data:night-lights": "node scripts/generate-night-lights.mjs",
+    "data:china-boundary": "node scripts/generate-china-boundary.mjs",
     "types": "wrangler types"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "@types/node": "24.10.0",
+    "mapshaper": "^0.7.61",
     "pngjs": "^7.0.0",
     "typescript": "5.9.3",
     "vitest": "5.0.0",

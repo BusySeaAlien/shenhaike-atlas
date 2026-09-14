@@ -1,3 +1,8 @@
 allowBuilds:
+  # mapshaper transitive deps. Both are optional native addons: better-sqlite3 is
+  # only used for SQLite input and msgpackr-extract falls back to JS. Atlas feeds
+  # mapshaper GeoJSON only, so neither build is needed.
+  better-sqlite3: false
   esbuild: true
+  msgpackr-extract: false
   workerd: true
