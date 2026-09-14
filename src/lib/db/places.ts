@@ -1,4 +1,5 @@
 import type { Place, PlaceInput } from "../../types/domain";
+import { resolveAdministrativeLocation } from "../map/administrative/location";
 import { validatePlaceInput } from "../validation/domain";
 import { DataError, isUniqueConstraintError } from "./errors";
 import type { PlaceRow } from "./rows";
@@ -6,6 +7,7 @@ import { toPlace } from "./rows";
 
 const PLACE_COLUMNS = `
   id, slug, name, name_zh, country, region, city, latitude, longitude,
+  sovereign_country_code, admin1_code,
   description, cover, created_at, updated_at
 `;
 
@@ -40,12 +42,15 @@ export async function getPlaceById(db: D1Database, id: number): Promise<Place | 
 
 export async function createPlace(db: D1Database, input: PlaceInput): Promise<Place> {
   const value = validated(input);
+  // Derived from the coordinates, never taken from the request body (§14-§19).
+  const location = resolveAdministrativeLocation(value.longitude, value.latitude);
   try {
     const row = await db
       .prepare(`
         INSERT INTO places (
-          slug, name, name_zh, country, region, city, latitude, longitude, description, cover
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+          slug, name, name_zh, country, region, city, latitude, longitude,
+          sovereign_country_code, admin1_code, description, cover
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         RETURNING ${PLACE_COLUMNS}
       `)
       .bind(
@@ -57,6 +62,8 @@ export async function createPlace(db: D1Database, input: PlaceInput): Promise<Pl
         value.city,
         value.latitude,
         value.longitude,
+        location.sovereignCountryCode,
+        location.admin1Code,
         value.description,
         value.cover,
       )
@@ -77,14 +84,20 @@ export async function updatePlace(
   input: PlaceInput,
 ): Promise<Place> {
   const value = validated(input);
+  // Recomputed on every edit rather than only when the coordinates differ: the
+  // polygon data can change under a place too, and a redundant resolve is cheap
+  // (§59).
+  const location = resolveAdministrativeLocation(value.longitude, value.latitude);
   try {
     const row = await db
       .prepare(`
         UPDATE places SET
           slug = ?1, name = ?2, name_zh = ?3, country = ?4, region = ?5,
-          city = ?6, latitude = ?7, longitude = ?8, description = ?9, cover = ?10,
+          city = ?6, latitude = ?7, longitude = ?8,
+          sovereign_country_code = ?9, admin1_code = ?10,
+          description = ?11, cover = ?12,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?11
+        WHERE id = ?13
         RETURNING ${PLACE_COLUMNS}
       `)
       .bind(
@@ -96,6 +109,8 @@ export async function updatePlace(
         value.city,
         value.latitude,
         value.longitude,
+        location.sovereignCountryCode,
+        location.admin1Code,
         value.description,
         value.cover,
         id,

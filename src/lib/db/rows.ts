@@ -10,6 +10,8 @@ export interface PlaceRow {
   city: string | null;
   latitude: number;
   longitude: number;
+  sovereign_country_code: string | null;
+  admin1_code: string | null;
   description: string | null;
   cover: string | null;
   created_at: string;
@@ -51,6 +53,8 @@ export function toPlace(row: PlaceRow): Place {
     city: row.city,
     latitude: row.latitude,
     longitude: row.longitude,
+    sovereignCountryCode: row.sovereign_country_code,
+    admin1Code: row.admin1_code,
     description: row.description,
     cover: row.cover,
     createdAt: row.created_at,

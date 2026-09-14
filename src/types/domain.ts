@@ -16,6 +16,14 @@ export interface Place {
   city: string | null;
   latitude: number;
   longitude: number;
+  /**
+   * Machine-readable administrative identity, derived from the coordinates by
+   * `resolveAdministrativeLocation()`. Never typed by hand and never read from
+   * the client (handoff §14-§18). `null` means the point fell outside every
+   * polygon at this scale, which a human has to fix.
+   */
+  sovereignCountryCode: string | null;
+  admin1Code: string | null;
   description: string | null;
   cover: string | null;
   createdAt: string;
@@ -82,6 +90,13 @@ export interface MapPoint {
   name: string;
   nameEn: string;
   country: string;
+  /**
+   * Carried through to the globe so Footprint can colour without re-querying.
+   * Dropping these anywhere in the D1 -> public.ts -> payload chain silently
+   * empties the Footprint view, so the chain is covered by tests.
+   */
+  sovereignCountryCode: string | null;
+  admin1Code: string | null;
   location: string;
   latitude: number;
   longitude: number;

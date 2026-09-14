@@ -75,7 +75,8 @@ interface PreHomeVisitRow {
 
 const PLACE_COLUMNS = `
   p.id, p.slug, p.name, p.name_zh, p.country, p.region, p.city,
-  p.latitude, p.longitude, p.description, p.cover, p.created_at, p.updated_at
+  p.latitude, p.longitude, p.sovereign_country_code, p.admin1_code,
+  p.description, p.cover, p.created_at, p.updated_at
 `;
 
 const JOURNEY_COLUMNS = `
@@ -155,6 +156,9 @@ export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData>
       name: place.nameZh || place.name,
       nameEn: place.name,
       country: place.country,
+      // Must survive into the payload; Footprint reads only these two.
+      sovereignCountryCode: place.sovereignCountryCode,
+      admin1Code: place.admin1Code,
       location: [place.city, place.region, place.country].filter(Boolean).join(" · "),
       latitude: place.latitude,
       longitude: place.longitude,

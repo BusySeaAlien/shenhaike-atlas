@@ -66,21 +66,29 @@ code { padding: .15em .35em; background: var(--wash); }
 .prehome-globe-heading { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(250px, .65fr); gap: clamp(32px, 7vw, 100px); align-items: end; padding: 20px 0 46px; }
 .prehome-globe-heading h1 { font-size: clamp(62px, 10vw, 126px); }
 .prehome-globe-heading > p { max-width: 29em; margin: 0 0 8px; color: var(--muted); font-family: var(--serif); font-size: clamp(15px, 1.8vw, 20px); line-height: 1.9; }
-.globe-toolbar { display: grid; grid-template-columns: auto minmax(190px, 280px) 1fr; gap: 14px; align-items: end; padding: 14px 0; border-top: 1px solid var(--line); }
+.globe-toolbar { display: grid; grid-template-columns: auto auto minmax(190px, 280px) 1fr; gap: 14px; align-items: end; padding: 14px 0; border-top: 1px solid var(--line); }
+/* Scope group, View group, journey selector, caption. The caption is pinned to
+   the last track so hiding the selector in Footprint does not shift it. */
 .globe-mode { display: flex; }
 .globe-mode button, .globe-toolbar select { height: 42px; border: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font: 11px var(--sans); }
 .globe-mode button { min-width: 76px; padding: 0 18px; cursor: pointer; }
 .globe-mode button + button { border-left: 0; }
 .globe-mode button.is-active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
 .globe-toolbar label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
+/* `display: grid` outranks the UA [hidden] rule, so state it explicitly. */
+.globe-toolbar label[hidden] { display: none; }
 .globe-toolbar select { width: 100%; padding: 0 34px 0 12px; }
-.globe-toolbar > p { justify-self: end; margin: 0 0 12px; color: var(--muted); font-size: 9px; letter-spacing: .06em; }
+.globe-toolbar > p { grid-column: 4; justify-self: end; margin: 0 0 12px; color: var(--muted); font-size: 9px; letter-spacing: .06em; }
 .globe-stage { position: relative; height: clamp(560px, 78svh, 820px); min-height: 560px; overflow: hidden; background: #050607; }
 .prehome-globe .map-runtime-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .globe-canvas { position: absolute; inset: 0; z-index: 1; }
 .globe-canvas:focus-visible { outline: 2px solid var(--ink); outline-offset: -4px; }
 .globe-canvas .maplibregl-ctrl-group { border-radius: 0; box-shadow: none; }
 .globe-canvas .maplibregl-ctrl-group button { border: 1px solid var(--line); background-color: rgba(5, 6, 7, .92); }
+/* Footprint hover readout. Follows the cursor, so it must not eat pointer
+   events or it would flicker against the fill underneath. */
+.globe-footprint-tip { position: absolute; z-index: 3; pointer-events: none; padding: 5px 9px; border: 1px solid var(--line); background: rgba(5, 6, 7, .92); color: var(--ink); font: 10px var(--sans); letter-spacing: .04em; white-space: nowrap; transform: translate(12px, -50%); }
+.globe-footprint-tip[hidden] { display: none; }
 .globe-canvas .maplibregl-ctrl-group button + button { border-top: 0; }
 .globe-canvas .maplibregl-ctrl-icon { filter: invert(1); }
 .globe-orbit-label { position: absolute; top: 50%; right: 18px; z-index: 2; display: grid; gap: 7px; justify-items: center; color: rgba(238, 241, 237, .48); font: 8px var(--sans); letter-spacing: .14em; transform: translateY(-50%); pointer-events: none; }
@@ -227,7 +235,7 @@ code { padding: .15em .35em; background: var(--wash); }
   .prehome-globe-heading > p { max-width: 24em; }
   .globe-toolbar { grid-template-columns: 1fr; align-items: stretch; }
   .globe-mode button { flex: 1; }
-  .globe-toolbar > p { justify-self: start; margin: 0; }
+  .globe-toolbar > p { grid-column: 1; justify-self: start; margin: 0; }
   .globe-stage { height: 68svh; min-height: 460px; }
   .globe-selection { grid-template-columns: 1fr auto; align-items: start; }
   .globe-selection > div { grid-column: 1 / -1; }

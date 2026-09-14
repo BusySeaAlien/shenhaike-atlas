@@ -22,10 +22,13 @@
     "db:query:production": "wrangler d1 execute atlas --remote --command",
     "data:night-lights": "node scripts/generate-night-lights.mjs",
     "data:china-boundary": "node scripts/generate-china-boundary.mjs",
+    "data:china-administrative": "node scripts/generate-china-administrative.mjs",
+    "data:world-administrative": "node scripts/generate-world-administrative.mjs",
     "types": "wrangler types"
   },
   "dependencies": {
     "@astrojs/cloudflare": "14.3.1",
+    "@turf/boolean-point-in-polygon": "^7.4.0",
     "astro": "7.3.2",
     "jose": "6.2.12",
     "maplibre-gl": "5.6.0"

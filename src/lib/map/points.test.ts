@@ -8,6 +8,8 @@ function point(overrides: Partial<MapPoint> = {}): MapPoint {
     name: "赛里木湖",
     nameEn: "Sayram Lake",
     country: "China",
+    sovereignCountryCode: "CHN",
+    admin1Code: "650000",
     location: "Xinjiang · China",
     latitude: 44.609,
     longitude: 81.174,
@@ -39,5 +41,25 @@ describe("map points", () => {
   it("keeps one input point per place when a place has repeated visits", () => {
     const repeated = point({ visitCount: 4, years: ["2025", "2026"], journeySlugs: ["xinjiang-2026", "year-crossing-2025"] });
     expect(filterMapPoints([repeated], {})).toEqual([repeated]);
+  });
+});
+
+describe("pre-home payload", () => {
+  /**
+   * Gate for Phase 2: a place whose codes are lost between D1 and the globe
+   * silently drops out of Footprint with no visible error, so the exact
+   * serialisation PreHomeGlobe performs is asserted here.
+   */
+  it("carries the administrative codes through the round trip", () => {
+    const payload = JSON.stringify({ points: [point()], routes: [] }).replaceAll("<", "\\u003c");
+    const parsed = JSON.parse(payload) as { points: MapPoint[] };
+    expect(parsed.points[0].sovereignCountryCode).toBe("CHN");
+    expect(parsed.points[0].admin1Code).toBe("650000");
+  });
+
+  it("uses the exact property names the Footprint layer reads", () => {
+    const keys = Object.keys(JSON.parse(JSON.stringify(point())) as object);
+    expect(keys).toContain("sovereignCountryCode");
+    expect(keys).toContain("admin1Code");
   });
 });

@@ -25,10 +25,14 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     <div class="globe-experience">
       <div class="globe-toolbar" aria-label="Globe controls">
         <div class="globe-mode" role="group" aria-label="Map extent">
-          <button type="button" class="is-active" aria-pressed="true" data-globe-mode="world">World</button>
-          <button type="button" aria-pressed="false" data-globe-mode="china">China</button>
+          <button type="button" class="is-active" aria-pressed="true" data-globe-scope="world">World</button>
+          <button type="button" aria-pressed="false" data-globe-scope="china">China</button>
         </div>
-        <label>
+        <div class="globe-mode" role="group" aria-label="Map view">
+          <button type="button" class="is-active" aria-pressed="true" data-globe-view="journey">Journey</button>
+          <button type="button" aria-pressed="false" data-globe-view="footprint">Footprint</button>
+        </div>
+        <label data-journey-selector>
           <span>Journey</span>
           <select data-globe-journey aria-label="Show a journey visit sequence">
             <option value="">Places only</option>
@@ -39,12 +43,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
             ))}
           </select>
         </label>
-        <p>Visit sequence · not a tracked route</p>
+        <p data-globe-caption>Visit sequence · not a tracked route</p>
       </div>
 
       <div class="globe-stage">
         <div class="globe-canvas" data-globe-canvas role="region" aria-label="Rotating globe of visited places" tabindex="0"></div>
         <p class="map-runtime-status" data-globe-status aria-live="polite">Loading the globe. Every place remains available below.</p>
+        <div class="globe-footprint-tip" data-globe-footprint-tip hidden aria-hidden="true"></div>
         <div class="globe-orbit-label" aria-hidden="true"><span>E</span><i></i><span>W</span></div>
       </div>
 
@@ -71,6 +76,22 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
   import * as maplibregl from "maplibre-gl";
   import type { GeoJSONSource, MapEventType, MapLayerMouseEvent } from "maplibre-gl";
   import { ensureChinaBoundaryLoaded, hideChinaBoundary, showChinaBoundary } from "../lib/map/boundaries/china";
+  import {
+    ensureChinaAdministrativeLoaded,
+    hideChinaAdministrative,
+    showChinaAdministrative,
+    applyChinaVisitedState,
+    bindChinaHover,
+  } from "../lib/map/administrative/china";
+  import { getVisitedChinaRegions, getVisitedCountries, countByCode } from "../lib/map/administrative/footprint";
+  import type { FootprintHover } from "../lib/map/administrative/layers";
+  import {
+    applyWorldVisitedState,
+    bindWorldHover,
+    ensureWorldAdministrativeLoaded,
+    hideWorldAdministrative,
+    showWorldAdministrative,
+  } from "../lib/map/administrative/world";
   import { CLUSTER_RADIUS_EXPRESSION, GLOBE_STYLE, PLACE_CLUSTER_OPTIONS } from "../lib/map/config";
   import {
     CHINA_OVERVIEW_BOUNDS,
@@ -83,9 +104,16 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     nightLightsGeoJson,
     pointsForMode,
     routeAvailableInMode,
-    type GlobeMode,
+    type ScopeMode,
     type NightLightPoint,
   } from "../lib/map/globe";
+  import {
+    DEFAULT_SCOPE,
+    DEFAULT_VIEW,
+    captionFor,
+    visibilityPlan,
+    type ViewMode,
+  } from "../lib/map/globe-state";
   import type { MapJourneyRoute, MapPoint } from "../types/domain";
 
   function initializeGlobe(root: HTMLElement) {
@@ -107,11 +135,16 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
     const pointById = new Map(points.map((point) => [point.id, point]));
     const routeBySlug = new Map(routes.map((route) => [route.slug, route]));
-    const modeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-mode]")];
+    const scopeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-scope]")];
+    const viewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-view]")];
+    const journeySelector = root.querySelector<HTMLElement>("[data-journey-selector]");
+    const caption = root.querySelector<HTMLElement>("[data-globe-caption]");
+    const footprintTip = root.querySelector<HTMLElement>("[data-globe-footprint-tip]");
     const journeySelect = root.querySelector<HTMLElement>("[data-globe-journey]") as HTMLSelectElement | null;
     const selection = root.querySelector<HTMLElement>("[data-globe-selection]");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let mode: GlobeMode = "world";
+    let scopeMode: ScopeMode = DEFAULT_SCOPE;
+    let viewMode: ViewMode = DEFAULT_VIEW;
     let selectedJourney = "";
     let popup: maplibregl.Popup | null = null;
     let mapVisible = true;
@@ -132,7 +165,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
     let map: maplibregl.Map;
 
-    const canRotate = () => mode === "world" && !reducedMotion.matches && mapVisible && !document.hidden;
+    const canRotate = () => scopeMode === "world" && !reducedMotion.matches && mapVisible && !document.hidden;
     const stopRotation = () => {
       if (frameId) window.cancelAnimationFrame(frameId);
       frameId = 0;
@@ -162,6 +195,32 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       popup?.remove();
       popup = null;
     };
+
+    // Footprint hover readout (§58/§59). Counts come from the same place codes
+    // the fill uses, so the number and the colour can never disagree.
+    const worldPlaceCounts = countByCode(points, (point) => point.sovereignCountryCode);
+    const chinaPlaceCounts = countByCode(points, (point) => point.admin1Code);
+    let worldHoverBound = false;
+    let chinaHoverBound = false;
+
+    const showFootprintTip = (hover: FootprintHover | null, counts: Map<string, number>) => {
+      if (!footprintTip) return;
+      if (!hover?.name) {
+        footprintTip.hidden = true;
+        return;
+      }
+      const count = counts.get(hover.code) ?? 0;
+      footprintTip.textContent = count > 0
+        ? `${hover.name} · ${count} ${count === 1 ? "place" : "places"}`
+        : `${hover.name} · Not visited`;
+      footprintTip.style.left = `${hover.x}px`;
+      footprintTip.style.top = `${hover.y}px`;
+      footprintTip.hidden = false;
+    };
+
+    const hideFootprintTip = () => {
+      if (footprintTip) footprintTip.hidden = true;
+    };
     const showPlace = (point: MapPoint) => {
       closePopup();
       if (selection) {
@@ -188,12 +247,12 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
     const updateJourney = () => {
       const route = routeBySlug.get(selectedJourney);
-      (map.getSource("journey-route") as GeoJSONSource | undefined)?.setData(journeyLineGeoJson(route, mode));
-      (map.getSource("journey-stops") as GeoJSONSource | undefined)?.setData(journeyStopsGeoJson(route, mode));
+      (map.getSource("journey-route") as GeoJSONSource | undefined)?.setData(journeyLineGeoJson(route, scopeMode));
+      (map.getSource("journey-stops") as GeoJSONSource | undefined)?.setData(journeyStopsGeoJson(route, scopeMode));
       if (status) {
         status.textContent = route
           ? `${route.nameZh || route.name}: visit sequence shown.`
-          : `${pointsForMode(points, mode).length} visited places shown.`;
+          : `${pointsForMode(points, scopeMode).length} visited places shown.`;
       }
     };
 
@@ -202,40 +261,115 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       for (const option of [...journeySelect.options]) {
         if (!option.value) continue;
         const route = routeBySlug.get(option.value);
-        option.hidden = !route || !routeAvailableInMode(route, mode);
+        option.hidden = !route || !routeAvailableInMode(route, scopeMode);
         option.disabled = option.hidden;
       }
       const selectedRoute = routeBySlug.get(selectedJourney);
-      if (selectedRoute && !routeAvailableInMode(selectedRoute, mode)) {
+      if (selectedRoute && !routeAvailableInMode(selectedRoute, scopeMode)) {
         selectedJourney = "";
         journeySelect.value = "";
       }
     };
 
-    const applyMode = (nextMode: GlobeMode) => {
-      mode = nextMode;
-      modeButtons.forEach((button) => {
-        const active = button.dataset.globeMode === mode;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-pressed", String(active));
-      });
+    /** Journey layers follow View only, never Scope (§7). */
+    const setJourneyLayersVisible = (visible: boolean) => {
+      for (const layerId of ["journey-route", "journey-stops"]) {
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+        }
+      }
+    };
+
+    /**
+     * The single place Scope and View become map state (§53/§54).
+     *
+     * Both switches route through here so a new dimension cannot be wired into
+     * one button handler and forgotten in another. Everything it decides comes
+     * from `visibilityPlan`, which is unit-tested without a map.
+     */
+    const applyMapState = (animate = true) => {
+      const plan = visibilityPlan(scopeMode, viewMode);
+      const duration = animate && !reducedMotion.matches ? 950 : 0;
+
+      for (const [buttons, key, value] of [
+        [scopeButtons, "globeScope", scopeMode],
+        [viewButtons, "globeView", viewMode],
+      ] as const) {
+        for (const button of buttons) {
+          const active = button.dataset[key] === value;
+          button.classList.toggle("is-active", active);
+          button.setAttribute("aria-pressed", String(active));
+        }
+      }
+
+      if (journeySelector) journeySelector.hidden = !plan.journeySelector;
+      if (caption) caption.textContent = captionFor(viewMode);
+      setJourneyLayersVisible(plan.journeyLayers);
+
       updateJourneyOptions();
       closePopup();
       if (selection) selection.hidden = true;
-      (map.getSource("globe-places") as GeoJSONSource | undefined)?.setData(pointGeoJson(pointsForMode(points, mode)));
+      (map.getSource("globe-places") as GeoJSONSource | undefined)
+        ?.setData(pointGeoJson(pointsForMode(points, scopeMode)));
       updateJourney();
       pauseRotation();
-      const duration = reducedMotion.matches ? 0 : 950;
-      if (mode === "china") {
+
+      // Administrative fill. Each scope loads its own data the first time
+      // Footprint is opened in that scope, and never refetches afterwards
+      // (§65/§66/§67).
+      if (plan.worldAdmin) {
+        void ensureWorldAdministrativeLoaded(map)
+          .then(() => {
+            // Hover can only bind once the layer exists; MapLibre throws on an
+            // unknown layer id, so this cannot move to the load handler.
+            if (!worldHoverBound) {
+              bindWorldHover(map, (hover) => showFootprintTip(hover, worldPlaceCounts));
+              worldHoverBound = true;
+            }
+            // Scope or view may have moved on while the chunks loaded.
+            if (!visibilityPlan(scopeMode, viewMode).worldAdmin) return;
+            applyWorldVisitedState(map, getVisitedCountries(points));
+            showWorldAdministrative(map);
+          })
+          .catch((error) => console.warn("Atlas world footprint unavailable", error));
+      } else {
+        hideWorldAdministrative(map);
+      }
+
+      if (plan.chinaAdmin) {
+        void ensureChinaAdministrativeLoaded(map)
+          .then(() => {
+            if (!chinaHoverBound) {
+              bindChinaHover(map, (hover) => showFootprintTip(hover, chinaPlaceCounts));
+              chinaHoverBound = true;
+            }
+            if (!visibilityPlan(scopeMode, viewMode).chinaAdmin) return;
+            applyChinaVisitedState(map, getVisitedChinaRegions(points));
+            showChinaAdministrative(map);
+          })
+          .catch((error) => console.warn("Atlas China footprint unavailable", error));
+      } else {
+        hideChinaAdministrative(map);
+      }
+
+      // Only clear the readout when Footprint as a whole is left, so switching
+      // scope inside Footprint does not flash the tooltip away.
+      if (!plan.worldAdmin && !plan.chinaAdmin) hideFootprintTip();
+
+      if (plan.chinaAuthority) {
         void ensureChinaBoundaryLoaded(map)
           .then(() => {
-            // The mode may have flipped back while the boundary chunks loaded.
-            if (mode === "china") showChinaBoundary(map);
+            // Scope may have flipped back while the boundary chunks loaded.
+            if (visibilityPlan(scopeMode, viewMode).chinaAuthority) showChinaBoundary(map);
           })
           .catch((error) => console.warn("Atlas China boundary unavailable", error));
-        map.fitBounds(CHINA_OVERVIEW_BOUNDS, { padding: CHINA_OVERVIEW_PADDING, bearing: 0, pitch: 0, duration });
       } else {
         hideChinaBoundary(map);
+      }
+
+      if (scopeMode === "china") {
+        map.fitBounds(CHINA_OVERVIEW_BOUNDS, { padding: CHINA_OVERVIEW_PADDING, bearing: 0, pitch: 0, duration });
+      } else {
         map.easeTo({ ...WORLD_CAMERA, bearing: 0, pitch: 0, duration });
       }
     };
@@ -302,7 +436,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           })
           .catch((error) => console.warn("Atlas night lights unavailable", error));
         window.setInterval(updateEarthLighting, 60_000);
-        map.addSource("journey-route", { type: "geojson", data: journeyLineGeoJson(undefined, mode) });
+        map.addSource("journey-route", { type: "geojson", data: journeyLineGeoJson(undefined, scopeMode) });
         map.addLayer({
           id: "journey-route",
           type: "line",
@@ -343,7 +477,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           filter: ["!", ["has", "point_count"]],
           paint: { "circle-color": "#f1f4f1", "circle-radius": 5.5, "circle-stroke-color": "#050607", "circle-stroke-width": 2 },
         });
-        map.addSource("journey-stops", { type: "geojson", data: journeyStopsGeoJson(undefined, mode) });
+        map.addSource("journey-stops", { type: "geojson", data: journeyStopsGeoJson(undefined, scopeMode) });
         map.addLayer({
           id: "journey-stops",
           type: "circle",
@@ -372,6 +506,9 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
         }
         if (status) status.textContent = `${points.length} visited places shown.`;
+        // Apply the initial plan explicitly rather than relying on the default
+        // visibility of freshly added layers.
+        applyMapState(false);
         startRotation();
       });
     } catch {
@@ -380,7 +517,16 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       return;
     }
 
-    modeButtons.forEach((button) => button.addEventListener("click", () => applyMode(button.dataset.globeMode === "china" ? "china" : "world")));
+    // Each group writes only its own axis, so neither switch can reset the
+    // other (§73/§74).
+    scopeButtons.forEach((button) => button.addEventListener("click", () => {
+      scopeMode = button.dataset.globeScope === "china" ? "china" : "world";
+      applyMapState();
+    }));
+    viewButtons.forEach((button) => button.addEventListener("click", () => {
+      viewMode = button.dataset.globeView === "footprint" ? "footprint" : "journey";
+      applyMapState();
+    }));
     journeySelect?.addEventListener("change", () => {
       selectedJourney = journeySelect.value;
       pauseRotation();

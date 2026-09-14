@@ -11,7 +11,8 @@ Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与
 - Astro 7.3.2
 - `@astrojs/cloudflare` 14.3.1
 - Wrangler 4.131.1
-- Leaflet 1.9.4
+- MapLibre GL JS 5.6.0（首页地图与 pre-home 地球共用）
+- `@turf/boolean-point-in-polygon` 7.4.0（服务端行政归属解析）
 
 这些版本按 2026-09-13 的 npm 发布版本与兼容范围固定。Atlas 使用独立依赖和锁文件，不要求升级 Home、Ink 或 Lens。
 
@@ -26,7 +27,7 @@ pnpm dev
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
 
-公开档案包含首页地图与摘要、`/map/` 筛选地图、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。
+公开档案包含首页地图与摘要、`/map/` 筛选地图、`/pre-home/` 地球首页（Scope × View）、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。
 
 `/map/` 提供 All 重置、访问年份和旅程筛选；年份与旅程同时选择时取地点集合交集，结果始终按 Place 去重。点位、筛选和同步地点列表均可用键盘操作；手机不依赖 hover，选择后通过明确链接进入详情。零点显示空状态，单点使用适当缩放，多点自动适配视野，同坐标或密集点位仍可从列表选择。
 
@@ -48,7 +49,21 @@ pnpm dev
 | `pnpm db:migrate:local` | 仅将 migrations 应用到 local D1 |
 | `pnpm db:seed:local` | 仅将开发 seed 导入 local D1 |
 | `pnpm db:migrate:production` | 明确将 migrations 应用到远程生产 D1 |
+| `pnpm data:night-lights` | 重新生成 pre-home 夜面灯光数据 |
+| `pnpm data:china-boundary` | 从授权源数据重新生成中国国境线、岛屿、南海断续线 |
+| `pnpm data:china-administrative` | 重新生成中国国家与省级行政面 |
+| `pnpm data:world-administrative` | 从 Natural Earth 重新生成世界国家面 |
 | `pnpm types` | 从 Wrangler 配置生成 Cloudflare binding 类型 |
+
+`data:*` 脚本都只读 `data-source/`（已 gitignore），不联网；只有拿到授权数据或更换版本时才需要手动重跑，产物提交进仓库。
+
+行政归属回填是一次性操作，默认 dry-run：
+
+```sh
+node scripts/backfill-administrative-codes.ts            # 预览
+node scripts/backfill-administrative-codes.ts --apply    # 写入 local D1
+node scripts/backfill-administrative-codes.ts --apply --remote   # 写入生产
+```
 
 所有开发、检查和构建流程默认连接本地模拟 binding。只有名称包含 `production` 且带 Wrangler `--remote` 的命令才会操作远程数据库。
 
@@ -98,11 +113,34 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 
 ## 地图依赖、底图与坐标
 
-- 交互层固定使用 Leaflet 1.9.4，业务页面只传递仓库内定义的 `MapPoint`，不暴露 Leaflet 专用类型。
-- 底图使用 OpenStreetMap Standard raster tiles：`https://tile.openstreetmap.org/{z}/{x}/{y}.png`。地图内始终显示 `© OpenStreetMap contributors` 和 Leaflet 链接；数据遵循 [ODbL](https://www.openstreetmap.org/copyright)，瓦片使用遵循 [OSMF Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)。
+两个地图面互相独立，共用 MapLibre GL JS，业务页面只传递仓库内定义的 `MapPoint`，不暴露 MapLibre 专用类型。
+
+| 页面 | 组件 | 底图 |
+| --- | --- | --- |
+| `/`、`/map/` | `components/InteractiveMap.astro` | OpenStreetMap Standard raster tiles |
+| `/pre-home/` | `components/PreHomeGlobe.astro` | NASA EOSDIS GIBS Blue Marble（卫星影像） |
+
+- OSM 瓦片为 `https://tile.openstreetmap.org/{z}/{x}/{y}.png`，数据遵循 [ODbL](https://www.openstreetmap.org/copyright)，瓦片使用遵循 [OSMF Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)。pre-home 使用 NASA GIBS 影像并署名，另叠加随时间移动的晨昏线与夜面灯光（`public/data/night-lights.json`，由 `pnpm data:night-lights` 一次性生成）。
 - 浏览器只请求当前视野所需瓦片，保留浏览器默认 Referer 和缓存行为；不代理、预取、批量下载或提供离线地图。OSM 标准瓦片为 best-effort 服务，未来流量增长或生产政策需要时可通过集中配置切换供应商。
-- D1 保存并向 Leaflet 传递 WGS84 纬度、经度；不进行 GCJ-02 或其他坐标转换。旅程详情的连线仅表达访问顺序，不代表道路、GPS 轨迹或距离。
+- D1 保存并向地图传递 WGS84 纬度、经度；不进行 GCJ-02 或其他坐标转换。旅程详情的连线仅表达访问顺序，不代表道路、GPS 轨迹或距离。
 - 瓦片或脚本加载失败时，导航、筛选前的服务端地点列表和详情入口仍保留；禁用 JavaScript 时也可浏览全部地点。
+
+## Pre-home 的 Scope 与 View
+
+`/pre-home/` 的地图状态是两个**互相独立**的维度，不是一组平铺的模式：
+
+- **Scope**：`World` / `China`，决定观察范围与相机。
+- **View**：`Journey` / `Footprint`，决定用什么方式表达旅行数据。
+
+切换其中一个不会重置另一个。Journey 显示访问顺序连线与行程选择器；Footprint 用行政区填色显示覆盖范围，并隐藏 Journey 图层与选择器。规则集中在 `lib/map/globe-state.ts`，由单元测试覆盖四种组合。
+
+### 中国边界与中国足迹
+
+- 中国相关政治边界与行政几何由 Atlas 自己维护，不依赖底图数据：`lib/map/boundaries/`（国境线、岛屿、南海断续线）与 `lib/map/administrative/`（国家与省级面）。
+- 数据在开发阶段一次性生成后提交进仓库，运行时只读取本项目静态资源，不请求任何第三方地图服务；`pnpm build` 完全离线。
+- 来源、CRS 判断依据、转换方法与已知待核验项记录在各自目录的 `README.md`。**尚未完成与自然资源部标准地图的人工比对，也未完成公开地图审核流程。**
+- World 足迹使用 Natural Earth Admin 0（110m），其中中国部分由中国权威面覆盖，港澳台在世界层级统一归入 `CHN`。
+- Place 的行政归属由 `lib/map/administrative/location.ts` 按经纬度做 Point-in-Polygon 解析后写入 D1，不依赖 `country` / `region` 文本匹配。
 
 ## 目录
 
@@ -114,10 +152,14 @@ src/
 │   ├── api/             # HTTP 响应工具
 │   ├── db/              # D1 binding 与查询层
 │   ├── map/             # 与地图供应商无关的适配层
+│   │   ├── boundaries/      # 中国国境线、岛屿、南海断续线
+│   │   ├── administrative/  # 国家/省级面、行政归属解析
+│   │   └── globe-state.ts   # Scope × View 状态
 │   └── validation/      # 服务端输入校验
 ├── pages/               # 公开页面、后台与必要接口
 ├── styles/              # Atlas 独立视觉系统
 └── types/               # 共享领域与输入类型
+docs/                    # 实施交接文档
 migrations/              # D1 migrations
 scripts/                 # 一次性维护脚本
 ```
@@ -127,6 +169,7 @@ Atlas 从 Home 与 Lens 延续了宋体标题、克制留白、低饱和纸张�
 ## 数据模型与规则
 
 - `places` 保存 WGS84 经纬度；`journeys` 保存起止日历日期；`visits` 连接两者并保存访问日期和顺序。
+- `places.sovereign_country_code` 与 `places.admin1_code` 是机器可读的行政归属，由服务端按坐标解析后写入，创建与修改时都会重算，从不接受客户端提交的值。`country` / `region` 保留为人工可读标签，不参与地图与统计判断。
 - Place 与 Journey 的 slug 分别唯一。Visit 必须引用有效记录，且访问日期必须位于旅程日期范围内。
 - 同一 Place 可以在同一或不同 Journey 中重复访问；不设置 Place/Journey 组合唯一约束。
 - Journey 内的 `sequence` 唯一。排序通过 D1 `batch()` 整体提交，任何语句失败时整批回滚。

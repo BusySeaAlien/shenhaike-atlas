@@ -1,6 +1,10 @@
 import type { MapJourneyRoute, MapJourneyStop, MapPoint } from "../../types/domain";
+import type { ScopeMode } from "./globe-state";
 
-export type GlobeMode = "world" | "china";
+// The scope axis lives in globe-state.ts with the rest of the Scope x View
+// state; re-exported here so the globe helpers keep one import site.
+export type { ScopeMode };
+
 type Coordinate = [number, number];
 export type NightLightPoint = [longitude: number, latitude: number, brightness: number];
 
@@ -136,15 +140,15 @@ export function isChinaCountry(country: string): boolean {
   return CHINA_COUNTRY_NAMES.has(country.trim().toLocaleLowerCase("en"));
 }
 
-export function pointsForMode(points: MapPoint[], mode: GlobeMode): MapPoint[] {
+export function pointsForMode(points: MapPoint[], mode: ScopeMode): MapPoint[] {
   return mode === "china" ? points.filter((point) => isChinaCountry(point.country)) : points;
 }
 
-export function routeAvailableInMode(route: MapJourneyRoute, mode: GlobeMode): boolean {
+export function routeAvailableInMode(route: MapJourneyRoute, mode: ScopeMode): boolean {
   return mode === "world" || route.stops.some((stop) => isChinaCountry(stop.country));
 }
 
-export function stopsForMode(stops: MapJourneyStop[], mode: GlobeMode): MapJourneyStop[] {
+export function stopsForMode(stops: MapJourneyStop[], mode: ScopeMode): MapJourneyStop[] {
   return mode === "china" ? stops.filter((stop) => isChinaCountry(stop.country)) : stops;
 }
 
@@ -168,7 +172,7 @@ export function splitAntimeridian(start: Coordinate, end: Coordinate): Coordinat
   ];
 }
 
-export function journeyLineGeoJson(route: MapJourneyRoute | undefined, mode: GlobeMode) {
+export function journeyLineGeoJson(route: MapJourneyRoute | undefined, mode: ScopeMode) {
   const features: Array<{
     type: "Feature";
     properties: { journey: string };
@@ -195,7 +199,7 @@ export function journeyLineGeoJson(route: MapJourneyRoute | undefined, mode: Glo
   return { type: "FeatureCollection" as const, features };
 }
 
-export function journeyStopsGeoJson(route: MapJourneyRoute | undefined, mode: GlobeMode) {
+export function journeyStopsGeoJson(route: MapJourneyRoute | undefined, mode: ScopeMode) {
   return {
     type: "FeatureCollection" as const,
     features: route ? stopsForMode(route.stops, mode).map((stop, index) => ({
