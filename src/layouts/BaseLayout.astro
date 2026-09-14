@@ -5,12 +5,16 @@ interface Props {
   title?: string;
   description?: string;
   canonicalPath?: string;
+  bodyClass?: string;
+  colorScheme?: "light" | "dark";
 }
 
 const {
   title = "Atlas — 深海客",
   description = "Personal Geographic Archive · 个人地理档案",
   canonicalPath = Astro.url.pathname,
+  bodyClass,
+  colorScheme = "light",
 } = Astro.props;
 const canonical = new URL(canonicalPath, Astro.site ?? Astro.url.origin);
 ---
@@ -21,7 +25,7 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url.origin);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content={colorScheme} />
     <link rel="canonical" href={canonical} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -29,7 +33,7 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url.origin);
     <meta property="og:type" content="website" />
     <title>{title}</title>
   </head>
-  <body>
+  <body class={bodyClass}>
     <a class="skip-link" href="#content">跳到正文</a>
     <div class="page-shell">
       <header class="site-header">
@@ -48,8 +52,10 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url.origin);
       </header>
       <main id="content"><slot /></main>
       <footer>
-        <span>31.2304° N · 121.4737° E</span>
-        <span>Personal Geographic Archive</span>
+        {Astro.slots.has("footer-content") ? <slot name="footer-content" /> : <>
+          <span>31.2304° N · 121.4737° E</span>
+          <span>Personal Geographic Archive</span>
+        </>}
       </footer>
     </div>
   </body>

@@ -1,0 +1,362 @@
+---
+import "maplibre-gl/dist/maplibre-gl.css";
+import type { MapJourneyRoute, MapPoint } from "../types/domain";
+import { isChinaCountry } from "../lib/map/globe";
+
+interface Props {
+  points: MapPoint[];
+  routes: MapJourneyRoute[];
+}
+
+const { points, routes } = Astro.props;
+const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
+---
+
+<section class="prehome-globe" data-prehome-globe>
+  <header class="prehome-globe-heading">
+    <div>
+      <p class="eyebrow">ATLAS / THE WORLD IN MEMORY</p>
+      <h1>Places,<br />in orbit.</h1>
+    </div>
+    <p>去过的地点散落在地球上。选择一段旅程，查看由访问顺序连接起来的路径。</p>
+  </header>
+
+  {points.length ? (
+    <div class="globe-experience">
+      <div class="globe-toolbar" aria-label="Globe controls">
+        <div class="globe-mode" role="group" aria-label="Map extent">
+          <button type="button" class="is-active" aria-pressed="true" data-globe-mode="world">World</button>
+          <button type="button" aria-pressed="false" data-globe-mode="china">China</button>
+        </div>
+        <label>
+          <span>Journey</span>
+          <select data-globe-journey aria-label="Show a journey visit sequence">
+            <option value="">Places only</option>
+            {routes.map((route) => (
+              <option value={route.slug} data-china={route.stops.some((stop) => isChinaCountry(stop.country)) ? "true" : "false"}>
+                {route.nameZh || route.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p>Visit sequence · not a tracked route</p>
+      </div>
+
+      <div class="globe-stage">
+        <div class="globe-canvas" data-globe-canvas role="region" aria-label="Rotating globe of visited places" tabindex="0"></div>
+        <p class="map-runtime-status" data-globe-status aria-live="polite">Loading the globe. Every place remains available below.</p>
+        <div class="globe-orbit-label" aria-hidden="true"><span>E</span><i></i><span>W</span></div>
+      </div>
+
+      <aside class="globe-selection" data-globe-selection hidden aria-live="polite">
+        <div><p class="eyebrow">SELECTED PLACE</p><h2 data-globe-place-name></h2></div>
+        <p data-globe-place-location></p>
+        <a data-globe-place-link>View place ↗</a>
+      </aside>
+
+      <noscript>
+        <div class="globe-noscript">
+          <p>JavaScript is unavailable. Browse the mapped places directly:</p>
+          <ul>{points.map((point) => <li><a href={point.href}>{point.name}</a></li>)}</ul>
+        </div>
+      </noscript>
+    </div>
+  ) : (
+    <div class="map-empty"><p>No visited places yet.</p><span>The globe will appear after the first visit is recorded.</span></div>
+  )}
+  <script type="application/json" data-globe-payload set:html={payload} is:inline />
+</section>
+
+<script>
+  import * as maplibregl from "maplibre-gl";
+  import type { GeoJSONSource, MapEventType, MapLayerMouseEvent } from "maplibre-gl";
+  import { CLUSTER_RADIUS_EXPRESSION, GLOBE_STYLE, PLACE_CLUSTER_OPTIONS } from "../lib/map/config";
+  import {
+    GLOBE_CAMERAS,
+    GLOBE_ROTATION,
+    journeyLineGeoJson,
+    journeyStopsGeoJson,
+    nightHemisphereGeoJson,
+    pointsForMode,
+    routeAvailableInMode,
+    type GlobeMode,
+  } from "../lib/map/globe";
+  import type { MapJourneyRoute, MapPoint } from "../types/domain";
+
+  function initializeGlobe(root: HTMLElement) {
+    if (root.dataset.enhanced) return;
+    root.dataset.enhanced = "true";
+    const canvas = root.querySelector<HTMLElement>("[data-globe-canvas]");
+    const payload = root.querySelector<HTMLScriptElement>("[data-globe-payload]");
+    const status = root.querySelector<HTMLElement>("[data-globe-status]");
+    if (!canvas || !payload) return;
+
+    let points: MapPoint[] = [];
+    let routes: MapJourneyRoute[] = [];
+    try {
+      ({ points, routes } = JSON.parse(payload.textContent || "{}") as { points: MapPoint[]; routes: MapJourneyRoute[] });
+    } catch {
+      if (status) status.textContent = "Globe data unavailable. Use the archive links below.";
+      return;
+    }
+
+    const pointById = new Map(points.map((point) => [point.id, point]));
+    const routeBySlug = new Map(routes.map((route) => [route.slug, route]));
+    const modeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-mode]")];
+    const journeySelect = root.querySelector<HTMLElement>("[data-globe-journey]") as HTMLSelectElement | null;
+    const selection = root.querySelector<HTMLElement>("[data-globe-selection]");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let mode: GlobeMode = "world";
+    let selectedJourney = "";
+    let popup: maplibregl.Popup | null = null;
+    let mapVisible = true;
+    let frameId = 0;
+    let restartTimer = 0;
+    let lastFrame = 0;
+
+    const pointGeoJson = (items: MapPoint[]) => ({
+      type: "FeatureCollection" as const,
+      features: items.map((point) => ({
+        type: "Feature" as const,
+        id: point.id,
+        properties: { id: point.id },
+        geometry: { type: "Point" as const, coordinates: [point.longitude, point.latitude] as [number, number] },
+      })),
+    });
+
+    let map: maplibregl.Map;
+
+    const canRotate = () => mode === "world" && !reducedMotion.matches && mapVisible && !document.hidden;
+    const stopRotation = () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      frameId = 0;
+      lastFrame = 0;
+    };
+    const rotate = (time: number) => {
+      frameId = 0;
+      if (!canRotate()) return;
+      if (lastFrame && !map.isMoving()) {
+        const elapsed = Math.min(time - lastFrame, 50);
+        const center = map.getCenter();
+        map.setCenter([center.lng + GLOBE_ROTATION.degreesPerSecond * elapsed / 1000, center.lat]);
+      }
+      lastFrame = time;
+      frameId = window.requestAnimationFrame(rotate);
+    };
+    const startRotation = () => {
+      if (!frameId && canRotate()) frameId = window.requestAnimationFrame(rotate);
+    };
+    const pauseRotation = (delay: number = GLOBE_ROTATION.idleDelay) => {
+      stopRotation();
+      window.clearTimeout(restartTimer);
+      restartTimer = window.setTimeout(startRotation, delay);
+    };
+
+    const closePopup = () => {
+      popup?.remove();
+      popup = null;
+    };
+    const showPlace = (point: MapPoint) => {
+      closePopup();
+      if (selection) {
+        selection.hidden = false;
+        selection.querySelector<HTMLElement>("[data-globe-place-name]")!.textContent = point.name;
+        selection.querySelector<HTMLElement>("[data-globe-place-location]")!.textContent = point.location;
+        const link = selection.querySelector<HTMLAnchorElement>("[data-globe-place-link]")!;
+        link.href = point.href;
+        link.setAttribute("aria-label", `View ${point.name}`);
+      }
+      const content = document.createElement("div");
+      const title = document.createElement("strong");
+      const link = document.createElement("a");
+      title.textContent = point.name;
+      link.href = point.href;
+      link.textContent = "View place ↗";
+      content.appendChild(title);
+      content.appendChild(link);
+      popup = new maplibregl.Popup({ closeButton: false, offset: 14 })
+        .setLngLat([point.longitude, point.latitude])
+        .setDOMContent(content)
+        .addTo(map);
+    };
+
+    const updateJourney = () => {
+      const route = routeBySlug.get(selectedJourney);
+      (map.getSource("journey-route") as GeoJSONSource | undefined)?.setData(journeyLineGeoJson(route, mode));
+      (map.getSource("journey-stops") as GeoJSONSource | undefined)?.setData(journeyStopsGeoJson(route, mode));
+      if (status) {
+        status.textContent = route
+          ? `${route.nameZh || route.name}: visit sequence shown.`
+          : `${pointsForMode(points, mode).length} visited places shown.`;
+      }
+    };
+
+    const updateJourneyOptions = () => {
+      if (!journeySelect) return;
+      for (const option of [...journeySelect.options]) {
+        if (!option.value) continue;
+        const route = routeBySlug.get(option.value);
+        option.hidden = !route || !routeAvailableInMode(route, mode);
+        option.disabled = option.hidden;
+      }
+      const selectedRoute = routeBySlug.get(selectedJourney);
+      if (selectedRoute && !routeAvailableInMode(selectedRoute, mode)) {
+        selectedJourney = "";
+        journeySelect.value = "";
+      }
+    };
+
+    const applyMode = (nextMode: GlobeMode) => {
+      mode = nextMode;
+      modeButtons.forEach((button) => {
+        const active = button.dataset.globeMode === mode;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      updateJourneyOptions();
+      closePopup();
+      if (selection) selection.hidden = true;
+      (map.getSource("globe-places") as GeoJSONSource | undefined)?.setData(pointGeoJson(pointsForMode(points, mode)));
+      updateJourney();
+      pauseRotation();
+      const camera = GLOBE_CAMERAS[mode];
+      map.easeTo({ ...camera, bearing: 0, pitch: 0, duration: reducedMotion.matches ? 0 : 950 });
+    };
+
+    try {
+      map = new maplibregl.Map({
+        container: canvas,
+        style: GLOBE_STYLE,
+        center: GLOBE_CAMERAS.world.center,
+        zoom: GLOBE_CAMERAS.world.zoom,
+        minZoom: 0.7,
+        maxPitch: 0,
+        attributionControl: false,
+        dragRotate: false,
+      });
+      map.touchZoomRotate.disableRotation();
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      map.on("error", (event: MapEventType["error"]) => {
+        if (event.error?.message.toLowerCase().includes("tile")) {
+          root.classList.add("has-map-error");
+          if (status) status.textContent = "Basemap unavailable. Place markers remain available.";
+        } else {
+          console.error("Atlas globe error", event.error);
+        }
+      });
+      map.on("load", () => {
+        map.setProjection({ type: "globe" });
+        map.addSource("night-hemisphere", { type: "geojson", data: nightHemisphereGeoJson(new Date()) });
+        map.addLayer({
+          id: "night-hemisphere",
+          type: "fill",
+          source: "night-hemisphere",
+          paint: { "fill-color": "#010203", "fill-opacity": 0.64, "fill-antialias": false },
+        });
+        window.setInterval(() => {
+          (map.getSource("night-hemisphere") as GeoJSONSource | undefined)?.setData(nightHemisphereGeoJson(new Date()));
+        }, 60_000);
+        map.addSource("journey-route", { type: "geojson", data: journeyLineGeoJson(undefined, mode) });
+        map.addLayer({
+          id: "journey-route",
+          type: "line",
+          source: "journey-route",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#d5ddd8", "line-opacity": 0.76, "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.2, 6, 2.4] },
+        });
+        map.addSource("globe-places", {
+          type: "geojson",
+          data: pointGeoJson(points),
+          ...PLACE_CLUSTER_OPTIONS,
+        });
+        map.addLayer({
+          id: "clusters",
+          type: "circle",
+          source: "globe-places",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": "#101815",
+            "circle-opacity": 0.9,
+            "circle-radius": CLUSTER_RADIUS_EXPRESSION,
+            "circle-stroke-color": "#d5ddd8",
+            "circle-stroke-width": 1.25,
+          },
+        });
+        map.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: "globe-places",
+          filter: ["has", "point_count"],
+          layout: { "text-field": ["to-string", ["get", "point_count"]], "text-font": ["Open Sans Semibold"], "text-size": 12, "text-allow-overlap": true },
+          paint: { "text-color": "#f1f4f1", "text-halo-color": "rgba(5, 6, 7, .94)", "text-halo-width": 0.7 },
+        });
+        map.addLayer({
+          id: "unclustered-point",
+          type: "circle",
+          source: "globe-places",
+          filter: ["!", ["has", "point_count"]],
+          paint: { "circle-color": "#f1f4f1", "circle-radius": 5.5, "circle-stroke-color": "#050607", "circle-stroke-width": 2 },
+        });
+        map.addSource("journey-stops", { type: "geojson", data: journeyStopsGeoJson(undefined, mode) });
+        map.addLayer({
+          id: "journey-stops",
+          type: "circle",
+          source: "journey-stops",
+          paint: { "circle-color": "#050607", "circle-radius": 7, "circle-stroke-color": "#f1f4f1", "circle-stroke-width": 2 },
+        });
+
+        map.on("click", "clusters", async (event: MapLayerMouseEvent) => {
+          pauseRotation();
+          const feature = event.features?.[0];
+          const clusterId = feature?.properties?.cluster_id;
+          if (typeof clusterId !== "number" || feature?.geometry.type !== "Point") return;
+          const zoom = await (map.getSource("globe-places") as GeoJSONSource).getClusterExpansionZoom(clusterId);
+          map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom, duration: reducedMotion.matches ? 0 : 750 });
+        });
+        const selectFeature = (event: MapLayerMouseEvent) => {
+          pauseRotation();
+          const id = String(event.features?.[0]?.properties?.id ?? event.features?.[0]?.properties?.placeId ?? "");
+          const point = pointById.get(id);
+          if (point) showPlace(point);
+        };
+        map.on("click", "unclustered-point", selectFeature);
+        map.on("click", "journey-stops", selectFeature);
+        for (const layer of ["clusters", "unclustered-point", "journey-stops"]) {
+          map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
+          map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
+        }
+        if (status) status.textContent = `${points.length} visited places shown.`;
+        startRotation();
+      });
+    } catch {
+      root.classList.add("has-map-error");
+      if (status) status.textContent = "Interactive globe unavailable. Use the archive links below.";
+      return;
+    }
+
+    modeButtons.forEach((button) => button.addEventListener("click", () => applyMode(button.dataset.globeMode === "china" ? "china" : "world")));
+    journeySelect?.addEventListener("change", () => {
+      selectedJourney = journeySelect.value;
+      pauseRotation();
+      updateJourney();
+    });
+    const beginInteraction = () => {
+      stopRotation();
+      window.clearTimeout(restartTimer);
+    };
+    canvas.addEventListener("pointerdown", beginInteraction, { passive: true });
+    canvas.addEventListener("pointerup", () => pauseRotation(), { passive: true });
+    canvas.addEventListener("pointercancel", () => pauseRotation(), { passive: true });
+    canvas.addEventListener("wheel", () => pauseRotation(), { passive: true });
+    canvas.addEventListener("keydown", () => pauseRotation());
+    reducedMotion.addEventListener("change", () => reducedMotion.matches ? stopRotation() : startRotation());
+    document.addEventListener("visibilitychange", () => document.hidden ? stopRotation() : startRotation());
+    new IntersectionObserver(([entry]) => {
+      mapVisible = entry.isIntersecting;
+      if (mapVisible) startRotation();
+      else stopRotation();
+    }, { threshold: 0.08 }).observe(root);
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-prehome-globe]").forEach(initializeGlobe);
+</script>

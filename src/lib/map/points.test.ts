@@ -7,6 +7,7 @@ function point(overrides: Partial<MapPoint> = {}): MapPoint {
     id: "1",
     name: "赛里木湖",
     nameEn: "Sayram Lake",
+    country: "China",
     location: "Xinjiang · China",
     latitude: 44.609,
     longitude: 81.174,

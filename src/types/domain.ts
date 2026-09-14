@@ -81,6 +81,7 @@ export interface MapPoint {
   id: string;
   name: string;
   nameEn: string;
+  country: string;
   location: string;
   latitude: number;
   longitude: number;
@@ -89,6 +90,27 @@ export interface MapPoint {
   visitCount: number;
   years: string[];
   journeySlugs: string[];
+}
+
+export interface MapJourneyStop {
+  placeId: string;
+  name: string;
+  nameEn: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  href: string;
+  visitedAt: string;
+  sequence: number;
+}
+
+export interface MapJourneyRoute {
+  slug: string;
+  name: string;
+  nameZh: string | null;
+  startDate: string;
+  endDate: string;
+  stops: MapJourneyStop[];
 }
 
 export interface MapJourneyOption {
@@ -143,4 +165,8 @@ export interface HomeData {
     journeys: number;
     regions: number;
   };
+}
+
+export interface PreHomeData extends HomeData {
+  routes: MapJourneyRoute[];
 }

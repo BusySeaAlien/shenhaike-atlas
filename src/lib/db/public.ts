@@ -5,6 +5,8 @@ import type {
   JourneyVisit,
   MapArchiveData,
   MapPoint,
+  MapJourneyRoute,
+  PreHomeData,
   Place,
   PlaceVisit,
   TimelineVisit,
@@ -51,6 +53,24 @@ interface MapVisitRow extends PlaceRow {
   journey_slug: string;
   journey_name: string;
   journey_name_zh: string | null;
+}
+
+interface PreHomeVisitRow {
+  visit_id: number;
+  visited_at: string;
+  sequence: number;
+  journey_slug: string;
+  journey_name: string;
+  journey_name_zh: string | null;
+  start_date: string;
+  end_date: string;
+  place_id: number;
+  place_slug: string;
+  place_name: string;
+  place_name_zh: string | null;
+  country: string;
+  latitude: number;
+  longitude: number;
 }
 
 const PLACE_COLUMNS = `
@@ -134,6 +154,7 @@ export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData>
       id: String(place.id),
       name: place.nameZh || place.name,
       nameEn: place.name,
+      country: place.country,
       location: [place.city, place.region, place.country].filter(Boolean).join(" · "),
       latitude: place.latitude,
       longitude: place.longitude,
@@ -150,6 +171,52 @@ export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData>
     years: [...years].sort((a, b) => b.localeCompare(a)),
     journeys: [...journeyMap.values()],
   };
+}
+
+export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
+  const [home, routeRows] = await Promise.all([
+    getHomeData(db),
+    db.prepare(`
+      SELECT v.id AS visit_id, v.visited_at, v.sequence,
+        j.slug AS journey_slug, j.name AS journey_name, j.name_zh AS journey_name_zh,
+        j.start_date, j.end_date,
+        p.id AS place_id, p.slug AS place_slug, p.name AS place_name,
+        p.name_zh AS place_name_zh, p.country, p.latitude, p.longitude
+      FROM visits v
+      INNER JOIN journeys j ON j.id = v.journey_id
+      INNER JOIN places p ON p.id = v.place_id
+      ORDER BY j.start_date DESC, j.id DESC, v.sequence, v.id
+    `).all<PreHomeVisitRow>(),
+  ]);
+
+  const routeMap = new Map<string, MapJourneyRoute>();
+  for (const row of routeRows.results) {
+    let route = routeMap.get(row.journey_slug);
+    if (!route) {
+      route = {
+        slug: row.journey_slug,
+        name: row.journey_name,
+        nameZh: row.journey_name_zh,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        stops: [],
+      };
+      routeMap.set(row.journey_slug, route);
+    }
+    route.stops.push({
+      placeId: String(row.place_id),
+      name: row.place_name_zh || row.place_name,
+      nameEn: row.place_name,
+      country: row.country,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      href: `/places/${row.place_slug}/`,
+      visitedAt: row.visited_at,
+      sequence: row.sequence,
+    });
+  }
+
+  return { ...home, routes: [...routeMap.values()] };
 }
 
 export async function getHomeData(db: D1Database): Promise<HomeData> {

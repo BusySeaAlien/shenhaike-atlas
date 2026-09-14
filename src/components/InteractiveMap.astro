@@ -1,5 +1,5 @@
 ---
-import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapJourneyOption, MapPoint } from "../types/domain";
 import { MAP_ATTRIBUTION } from "../lib/map/config";
 
@@ -68,8 +68,9 @@ const pointPayload = JSON.stringify(points).replaceAll("<", "\\u003c");
 </section>
 
 <script>
-  import L from "leaflet";
-  import { TILE_OPTIONS, TILE_URL } from "../lib/map/config";
+  import * as maplibregl from "maplibre-gl";
+  import type { GeoJSONSource, MapEventType, MapGeoJSONFeature, MapLayerMouseEvent } from "maplibre-gl";
+  import { CLUSTER_RADIUS_EXPRESSION, MAP_STYLE, PLACE_CLUSTER_OPTIONS } from "../lib/map/config";
   import { filterMapPoints } from "../lib/map/points";
   import type { MapPoint } from "../types/domain";
 
@@ -96,9 +97,46 @@ const pointPayload = JSON.stringify(points).replaceAll("<", "\\u003c");
       [...root.querySelectorAll<HTMLElement>("[data-map-point]")].map((item) => [item.dataset.mapPoint!, item]),
     );
     const pointById = new Map(points.map((point) => [point.id, point]));
-    let map: L.Map | null = null;
-    const markers = new Map<string, L.Marker>();
+    let map: maplibregl.Map | null = null;
+    let visiblePoints = filterMapPoints(points, {});
+    let selectedPopup: maplibregl.Popup | null = null;
+    let hoveredClusterId: string | number | null = null;
+    let hoveredPointId: string | number | null = null;
     let selectedId = "";
+
+    const asGeoJson = (items: MapPoint[]) => ({
+      type: "FeatureCollection" as const,
+      features: items.map((point) => ({
+        type: "Feature" as const,
+        id: point.id,
+        properties: { id: point.id },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [point.longitude, point.latitude],
+        },
+      })),
+    });
+
+    const closePopup = () => {
+      selectedPopup?.remove();
+      selectedPopup = null;
+    };
+
+    const showPointPopup = (point: MapPoint) => {
+      if (!map) return;
+      closePopup();
+      const tooltip = document.createElement("div");
+      const title = document.createElement("strong");
+      const summary = document.createElement("span");
+      title.textContent = point.name;
+      summary.textContent = `${point.visitCount} ${point.visitCount === 1 ? "visit" : "visits"} · ${point.lastVisitedAt}`;
+      tooltip.appendChild(title);
+      tooltip.appendChild(summary);
+      selectedPopup = new maplibregl.Popup({ closeButton: false, offset: 14 })
+        .setLngLat([point.longitude, point.latitude])
+        .setDOMContent(tooltip)
+        .addTo(map);
+    };
 
     const showSelection = (point: MapPoint, focusMap = false) => {
       selectedId = point.id;
@@ -118,8 +156,12 @@ const pointPayload = JSON.stringify(points).replaceAll("<", "\\u003c");
         else item.removeAttribute("aria-current");
       });
       if (map && focusMap) {
-        map.setView([point.latitude, point.longitude], Math.max(map.getZoom(), 8), { animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches });
-        markers.get(point.id)?.openTooltip();
+        map.easeTo({
+          center: [point.longitude, point.latitude],
+          zoom: Math.max(map.getZoom(), PLACE_CLUSTER_OPTIONS.clusterMaxZoom + 1),
+          duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 650,
+        });
+        showPointPopup(point);
       }
     };
 
@@ -131,28 +173,131 @@ const pointPayload = JSON.stringify(points).replaceAll("<", "\\u003c");
     });
 
     try {
-      map = L.map(canvas, { attributionControl: false, scrollWheelZoom: false, zoomControl: true });
-      const tiles = L.tileLayer(TILE_URL, TILE_OPTIONS).addTo(map);
-      tiles.on("tileerror", () => {
-        root.classList.add("has-map-error");
-        if (status) status.textContent = "Basemap unavailable. Points and the place list remain available.";
+      map = new maplibregl.Map({
+        container: canvas,
+        style: MAP_STYLE,
+        center: [0, 20],
+        zoom: 1,
+        attributionControl: false,
       });
-      for (const point of filterMapPoints(points, {})) {
-        const icon = L.divIcon({ className: "atlas-marker", html: "<span></span>", iconSize: [20, 20], iconAnchor: [10, 10] });
-        const marker = L.marker([point.latitude, point.longitude], { icon, keyboard: true, title: point.name, alt: point.name });
-        const tooltip = document.createElement("div");
-        const title = document.createElement("strong");
-        const summary = document.createElement("span");
-        title.textContent = point.name;
-        summary.textContent = `${point.visitCount} ${point.visitCount === 1 ? "visit" : "visits"} · ${point.lastVisitedAt}`;
-        tooltip.appendChild(title);
-        tooltip.appendChild(summary);
-        marker.bindTooltip(tooltip, { direction: "top", offset: [0, -9] });
-        marker.on("click", () => showSelection(point));
-        marker.addTo(map);
-        markers.set(point.id, marker);
-      }
-      if (status) status.textContent = "Map ready. Select a point or use the synchronized place list.";
+      map.scrollZoom.disable();
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      map.on("error", (event: MapEventType["error"]) => {
+        if (event.error?.message.toLowerCase().includes("tile")) {
+          root.classList.add("has-map-error");
+          if (status) status.textContent = "Basemap unavailable. Points and the place list remain available.";
+        } else {
+          console.error("Atlas map error", event.error);
+        }
+      });
+      map.on("load", () => {
+        if (!map) return;
+        map.addSource("places", {
+          type: "geojson",
+          data: asGeoJson(visiblePoints),
+          ...PLACE_CLUSTER_OPTIONS,
+        });
+
+        map.addLayer({
+          id: "clusters",
+          type: "circle",
+          source: "places",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": "#dce2dc",
+            "circle-opacity": 0.94,
+            "circle-radius": ["*", CLUSTER_RADIUS_EXPRESSION, ["case", ["boolean", ["feature-state", "hover"], false], 1.08, 1]],
+            "circle-stroke-color": "#52635c",
+            "circle-stroke-width": 1.25,
+          },
+        });
+
+        map.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: "places",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["to-string", ["get", "point_count"]],
+            "text-font": ["Open Sans Semibold"],
+            "text-size": 12,
+            "text-allow-overlap": true,
+          },
+          paint: {
+            "text-color": "#23362f",
+            "text-halo-color": "rgba(243, 244, 239, 0.92)",
+            "text-halo-width": 0.6,
+          },
+        });
+
+        map.addLayer({
+          id: "unclustered-point",
+          type: "circle",
+          source: "places",
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-color": "#23362f",
+            "circle-radius": ["case", ["boolean", ["feature-state", "hover"], false], 7, 5.5],
+            "circle-stroke-color": "#f3f4ef",
+            "circle-stroke-width": 2,
+          },
+        });
+
+        map.on("click", "clusters", async (event: MapLayerMouseEvent) => {
+          const feature = event.features?.[0];
+          const clusterId = feature?.properties?.cluster_id;
+          if (!map || !feature || typeof clusterId !== "number" || feature.geometry.type !== "Point") return;
+          try {
+            const zoom = await (map.getSource("places") as GeoJSONSource).getClusterExpansionZoom(clusterId);
+            map.easeTo({
+              center: feature.geometry.coordinates as [number, number],
+              zoom,
+              duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 700,
+            });
+          } catch {
+            // The source can change while a filter is applied; stale cluster ids are safe to ignore.
+          }
+        });
+
+        map.on("click", "unclustered-point", (event: MapLayerMouseEvent) => {
+          const point = pointById.get(String(event.features?.[0]?.properties?.id ?? ""));
+          if (point) {
+            showSelection(point);
+            showPointPopup(point);
+          }
+        });
+
+        const setHover = (feature: MapGeoJSONFeature | undefined, hover: boolean) => {
+          if (!map || feature?.id === undefined) return;
+          map.setFeatureState({ source: "places", id: feature.id }, { hover });
+        };
+        map.on("mousemove", "clusters", (event: MapLayerMouseEvent) => {
+          const feature = event.features?.[0];
+          if (hoveredClusterId !== null) map?.setFeatureState({ source: "places", id: hoveredClusterId }, { hover: false });
+          hoveredClusterId = feature?.id ?? null;
+          setHover(feature, true);
+          map!.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", "clusters", () => {
+          if (hoveredClusterId !== null) map?.setFeatureState({ source: "places", id: hoveredClusterId }, { hover: false });
+          hoveredClusterId = null;
+          if (map) map.getCanvas().style.cursor = "";
+        });
+        map.on("mouseenter", "unclustered-point", (event: MapLayerMouseEvent) => {
+          const feature = event.features?.[0];
+          hoveredPointId = feature?.id ?? null;
+          setHover(feature, true);
+          map!.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", "unclustered-point", () => {
+          if (hoveredPointId !== null) map?.setFeatureState({ source: "places", id: hoveredPointId }, { hover: false });
+          hoveredPointId = null;
+          if (map) map.getCanvas().style.cursor = "";
+        });
+
+        fitVisiblePoints(visiblePoints);
+        if (status) status.textContent = "Map ready. Select a point or use the synchronized place list.";
+      });
     } catch {
       root.classList.add("has-map-error");
       if (status) status.textContent = "Interactive map unavailable. Browse and open every place from the list below.";
@@ -160,33 +305,35 @@ const pointPayload = JSON.stringify(points).replaceAll("<", "\\u003c");
 
     const fitVisiblePoints = (visible: MapPoint[]) => {
       if (!map || visible.length === 0) return;
-      if (visible.length === 1) map.setView([visible[0].latitude, visible[0].longitude], 10, { animate: false });
-      else map.fitBounds(L.latLngBounds(visible.map(({ latitude, longitude }) => [latitude, longitude])), { padding: [32, 32], maxZoom: 10, animate: false });
+      if (visible.length === 1) map.jumpTo({ center: [visible[0].longitude, visible[0].latitude], zoom: 10 });
+      else {
+        const bounds = new maplibregl.LngLatBounds();
+        visible.forEach(({ latitude, longitude }) => bounds.extend([longitude, latitude]));
+        map.fitBounds(bounds, { padding: 32, maxZoom: 10, duration: 0 });
+      }
     };
 
     const applyFilters = () => {
       const form = root.querySelector<HTMLFormElement>("[data-map-filters]");
       const values = form ? new FormData(form) : null;
-      const visible = filterMapPoints(points, {
+      visiblePoints = filterMapPoints(points, {
         year: values?.get("year")?.toString() || undefined,
         journey: values?.get("journey")?.toString() || undefined,
       });
-      const visibleIds = new Set(visible.map(({ id }) => id));
+      const visibleIds = new Set(visiblePoints.map(({ id }) => id));
       listItems.forEach((item, id) => { item.hidden = !visibleIds.has(id); });
-      markers.forEach((marker, id) => {
-        if (!map) return;
-        if (visibleIds.has(id) && !map.hasLayer(marker)) marker.addTo(map);
-        if (!visibleIds.has(id) && map.hasLayer(marker)) marker.removeFrom(map);
-      });
+      const source = map?.getSource("places") as GeoJSONSource | undefined;
+      source?.setData(asGeoJson(visiblePoints));
       if (selectedId && !visibleIds.has(selectedId) && selection) {
         selectedId = "";
         selection.hidden = true;
+        closePopup();
       }
-      if (empty) empty.hidden = visible.length > 0;
-      if (count) count.textContent = `${String(visible.length).padStart(2, "0")} points`;
+      if (empty) empty.hidden = visiblePoints.length > 0;
+      if (count) count.textContent = `${String(visiblePoints.length).padStart(2, "0")} points`;
       const all = root.querySelector<HTMLElement>("[data-map-all]");
       all?.classList.toggle("is-active", !values?.get("year") && !values?.get("journey"));
-      fitVisiblePoints(visible);
+      if (source) fitVisiblePoints(visiblePoints);
     };
 
     const filters = root.querySelector<HTMLFormElement>("[data-map-filters]");
