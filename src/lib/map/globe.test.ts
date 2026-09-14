@@ -5,7 +5,6 @@ import {
   WORLD_CAMERA,
   GLOBE_ROTATION,
   isChinaCountry,
-  nightHemisphereGeoJson,
   nightLightsGeoJson,
   journeyLineGeoJson,
   pointsForMode,
@@ -53,9 +52,6 @@ describe("globe data helpers", () => {
     const [longitude, latitude] = subsolarPoint(equinoxNoon);
     expect(Math.abs(longitude)).toBeLessThan(5);
     expect(Math.abs(latitude)).toBeLessThan(1);
-    const night = nightHemisphereGeoJson(equinoxNoon);
-    expect(night.features[0].geometry.type).toBe("MultiPolygon");
-    expect(night.features[0].geometry.coordinates).toHaveLength(90);
   });
 
   it("shows lights only after local twilight and fades the boundary", () => {

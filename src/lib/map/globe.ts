@@ -57,42 +57,6 @@ export function subsolarPoint(date: Date): Coordinate {
   ];
 }
 
-export function nightHemisphereGeoJson(date: Date) {
-  const [sunLongitude, sunLatitude] = subsolarPoint(date);
-  const nightCenter: Coordinate = [normalizeLongitude(sunLongitude + 180), -sunLatitude];
-  const centerLongitude = nightCenter[0] * Math.PI / 180;
-  const centerLatitude = nightCenter[1] * Math.PI / 180;
-  const boundary: Coordinate[] = [];
-
-  for (let degrees = 0; degrees <= 360; degrees += 4) {
-    const bearing = degrees * Math.PI / 180;
-    const latitude = Math.asin(Math.cos(centerLatitude) * Math.cos(bearing));
-    const longitude = centerLongitude + Math.atan2(
-      Math.sin(bearing) * Math.cos(centerLatitude),
-      -Math.sin(centerLatitude) * Math.sin(latitude),
-    );
-    let longitudeDegrees = longitude * 180 / Math.PI;
-    while (longitudeDegrees - nightCenter[0] > 180) longitudeDegrees -= 360;
-    while (longitudeDegrees - nightCenter[0] < -180) longitudeDegrees += 360;
-    boundary.push([longitudeDegrees, latitude * 180 / Math.PI]);
-  }
-
-  const coordinates = boundary.slice(0, -1).map((point, index) => [[
-    nightCenter,
-    point,
-    boundary[index + 1],
-    nightCenter,
-  ]]);
-  return {
-    type: "FeatureCollection" as const,
-    features: [{
-      type: "Feature" as const,
-      properties: { updatedAt: date.toISOString() },
-      geometry: { type: "MultiPolygon" as const, coordinates },
-    }],
-  };
-}
-
 function smoothstep(value: number): number {
   const bounded = Math.max(0, Math.min(1, value));
   return bounded * bounded * (3 - 2 * bounded);

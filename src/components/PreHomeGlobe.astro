@@ -100,13 +100,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     WORLD_CAMERA,
     journeyLineGeoJson,
     journeyStopsGeoJson,
-    nightHemisphereGeoJson,
     nightLightsGeoJson,
     pointsForMode,
     routeAvailableInMode,
     type ScopeMode,
     type NightLightPoint,
   } from "../lib/map/globe";
+  import { createNightHemisphereLayer } from "../lib/map/night-layer";
   import {
     DEFAULT_SCOPE,
     DEFAULT_VIEW,
@@ -397,13 +397,8 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       });
       map.on("load", () => {
         map.setProjection({ type: "globe" });
-        map.addSource("night-hemisphere", { type: "geojson", data: nightHemisphereGeoJson(new Date()) });
-        map.addLayer({
-          id: "night-hemisphere",
-          type: "fill",
-          source: "night-hemisphere",
-          paint: { "fill-color": "#010203", "fill-opacity": 0.64, "fill-antialias": false },
-        });
+        const nightHemisphereLayer = createNightHemisphereLayer(new Date());
+        map.addLayer(nightHemisphereLayer);
         map.addSource("night-lights", { type: "geojson", data: nightLightsGeoJson([], new Date()) });
         map.addLayer({
           id: "night-lights-glow",
@@ -421,7 +416,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         });
         const updateEarthLighting = () => {
           const now = new Date();
-          (map.getSource("night-hemisphere") as GeoJSONSource | undefined)?.setData(nightHemisphereGeoJson(now));
+          nightHemisphereLayer.setDate(now);
           (map.getSource("night-lights") as GeoJSONSource | undefined)?.setData(nightLightsGeoJson(nightLightPoints, now));
         };
         fetch("/data/night-lights.json")
