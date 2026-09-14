@@ -5,6 +5,7 @@ import {
   GLOBE_ROTATION,
   isChinaCountry,
   nightHemisphereGeoJson,
+  nightLightsGeoJson,
   journeyLineGeoJson,
   pointsForMode,
   routeAvailableInMode,
@@ -47,6 +48,19 @@ describe("globe data helpers", () => {
     const night = nightHemisphereGeoJson(equinoxNoon);
     expect(night.features[0].geometry.type).toBe("MultiPolygon");
     expect(night.features[0].geometry.coordinates).toHaveLength(90);
+  });
+
+  it("shows lights only after local twilight and fades the boundary", () => {
+    const equinoxNoon = new Date("2024-03-20T12:00:00.000Z");
+    const lights = nightLightsGeoJson([
+      [0, 0, 1],
+      [180, 0, 1],
+      [98, 0, 1],
+    ], equinoxNoon);
+    expect(lights.features.map(({ geometry }) => geometry.coordinates[0])).toEqual([180, 98]);
+    expect(lights.features[0].properties.intensity).toBe(1);
+    expect(lights.features[1].properties.intensity).toBeGreaterThan(0);
+    expect(lights.features[1].properties.intensity).toBeLessThan(1);
   });
 
   it("filters points and journey availability for China mode", () => {

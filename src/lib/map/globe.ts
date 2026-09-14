@@ -2,6 +2,7 @@ import type { MapJourneyRoute, MapJourneyStop, MapPoint } from "../../types/doma
 
 export type GlobeMode = "world" | "china";
 type Coordinate = [number, number];
+export type NightLightPoint = [longitude: number, latitude: number, brightness: number];
 
 export const GLOBE_CAMERAS = {
   world: { center: [104, 24] as Coordinate, zoom: 1.9 },
@@ -72,6 +73,39 @@ export function nightHemisphereGeoJson(date: Date) {
       geometry: { type: "MultiPolygon" as const, coordinates },
     }],
   };
+}
+
+function smoothstep(value: number): number {
+  const bounded = Math.max(0, Math.min(1, value));
+  return bounded * bounded * (3 - 2 * bounded);
+}
+
+export function nightLightsGeoJson(points: NightLightPoint[], date: Date) {
+  const [sunLongitude, sunLatitude] = subsolarPoint(date);
+  const sunLongitudeRadians = sunLongitude * Math.PI / 180;
+  const sunLatitudeRadians = sunLatitude * Math.PI / 180;
+  const features = [];
+
+  for (let index = 0; index < points.length; index += 1) {
+    const [longitude, latitude, brightness] = points[index];
+    const longitudeRadians = longitude * Math.PI / 180;
+    const latitudeRadians = latitude * Math.PI / 180;
+    const solarAltitude = Math.asin(
+      Math.sin(latitudeRadians) * Math.sin(sunLatitudeRadians)
+      + Math.cos(latitudeRadians) * Math.cos(sunLatitudeRadians)
+      * Math.cos(longitudeRadians - sunLongitudeRadians),
+    ) * 180 / Math.PI;
+    const darkness = smoothstep((-2 - solarAltitude) / 7);
+    if (darkness <= 0.01) continue;
+    features.push({
+      type: "Feature" as const,
+      id: index,
+      properties: { intensity: Number((brightness * darkness).toFixed(3)) },
+      geometry: { type: "Point" as const, coordinates: [longitude, latitude] as Coordinate },
+    });
+  }
+
+  return { type: "FeatureCollection" as const, features };
 }
 
 const CHINA_COUNTRY_NAMES = new Set([

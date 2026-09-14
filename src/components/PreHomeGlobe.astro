@@ -77,9 +77,11 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     journeyLineGeoJson,
     journeyStopsGeoJson,
     nightHemisphereGeoJson,
+    nightLightsGeoJson,
     pointsForMode,
     routeAvailableInMode,
     type GlobeMode,
+    type NightLightPoint,
   } from "../lib/map/globe";
   import type { MapJourneyRoute, MapPoint } from "../types/domain";
 
@@ -113,6 +115,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     let frameId = 0;
     let restartTimer = 0;
     let lastFrame = 0;
+    let nightLightPoints: NightLightPoint[] = [];
 
     const pointGeoJson = (items: MapPoint[]) => ({
       type: "FeatureCollection" as const,
@@ -253,9 +256,38 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           source: "night-hemisphere",
           paint: { "fill-color": "#010203", "fill-opacity": 0.64, "fill-antialias": false },
         });
-        window.setInterval(() => {
-          (map.getSource("night-hemisphere") as GeoJSONSource | undefined)?.setData(nightHemisphereGeoJson(new Date()));
-        }, 60_000);
+        map.addSource("night-lights", { type: "geojson", data: nightLightsGeoJson([], new Date()) });
+        map.addLayer({
+          id: "night-lights-glow",
+          type: "circle",
+          source: "night-lights",
+          paint: {
+            "circle-color": "#ffd8a3",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"],
+              1, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.25, 1, 1.15],
+              5, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.45, 1, 2.1],
+            ],
+            "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.08, 1, 0.92],
+            "circle-blur": 0.82,
+          },
+        });
+        const updateEarthLighting = () => {
+          const now = new Date();
+          (map.getSource("night-hemisphere") as GeoJSONSource | undefined)?.setData(nightHemisphereGeoJson(now));
+          (map.getSource("night-lights") as GeoJSONSource | undefined)?.setData(nightLightsGeoJson(nightLightPoints, now));
+        };
+        fetch("/data/night-lights.json")
+          .then((response) => {
+            if (!response.ok) throw new Error(`Night-light data returned ${response.status}`);
+            return response.json() as Promise<{ points?: NightLightPoint[] }>;
+          })
+          .then((data) => {
+            if (!Array.isArray(data.points)) throw new Error("Night-light data is invalid");
+            nightLightPoints = data.points;
+            updateEarthLighting();
+          })
+          .catch((error) => console.warn("Atlas night lights unavailable", error));
+        window.setInterval(updateEarthLighting, 60_000);
         map.addSource("journey-route", { type: "geojson", data: journeyLineGeoJson(undefined, mode) });
         map.addLayer({
           id: "journey-route",
