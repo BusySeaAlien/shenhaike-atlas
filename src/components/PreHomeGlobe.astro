@@ -23,7 +23,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
   </header>
 
   {points.length ? (
-    <div class="globe-experience">
+    <div class="globe-experience" data-globe-entry>
       {/* Defaults come from globe-state.ts rather than being written out here,
           so the markup cannot drift from DEFAULT_SCOPE / DEFAULT_VIEW and flash
           the wrong state before the script runs. Scope on the left, View on the
@@ -390,7 +390,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         style: GLOBE_STYLE,
         center: WORLD_CAMERA.center,
         zoom: WORLD_CAMERA.zoom,
-        minZoom: 0.7,
+        minZoom: WORLD_CAMERA.zoom,
         maxZoom: 8,
         maxPitch: 0,
         attributionControl: false,
@@ -560,6 +560,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       if (mapVisible) startRotation();
       else stopRotation();
     }, { threshold: 0.08 }).observe(root);
+
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (!window.location.hash && navigation?.type === "navigate" && window.scrollY < 2) {
+      window.requestAnimationFrame(() => {
+        root.querySelector<HTMLElement>("[data-globe-entry]")?.scrollIntoView({ block: "start" });
+      });
+    }
   }
 
   document.querySelectorAll<HTMLElement>("[data-prehome-globe]").forEach(initializeGlobe);
