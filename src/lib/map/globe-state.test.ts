@@ -88,13 +88,13 @@ describe("Scope and View independence (§8, §73, §74)", () => {
 });
 
 describe("globe defaults", () => {
-  it("opens on the existing homepage experience (§3)", () => {
+  it("opens on World + Footprint", () => {
     expect(DEFAULT_SCOPE).toBe("world");
-    expect(DEFAULT_VIEW).toBe("journey");
+    expect(DEFAULT_VIEW).toBe("footprint");
     expect(visibilityPlan(DEFAULT_SCOPE, DEFAULT_VIEW)).toEqual({
-      journeyLayers: true,
-      journeySelector: true,
-      worldAdmin: false,
+      journeyLayers: false,
+      journeySelector: false,
+      worldAdmin: true,
       chinaAdmin: false,
       chinaAuthority: false,
     });

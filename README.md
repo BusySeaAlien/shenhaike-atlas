@@ -11,7 +11,7 @@ Personal Geographic Archive，使用 Astro、TypeScript、Cloudflare Workers 与
 - Astro 7.3.2
 - `@astrojs/cloudflare` 14.3.1
 - Wrangler 4.131.1
-- MapLibre GL JS 5.6.0（首页地图与 pre-home 地球共用）
+- MapLibre GL JS 5.6.0（首页地球与 `/map/` 地图共用）
 - `@turf/boolean-point-in-polygon` 7.4.0（服务端行政归属解析）
 
 这些版本按 2026-09-13 的 npm 发布版本与兼容范围固定。Atlas 使用独立依赖和锁文件，不要求升级 Home、Ink 或 Lens。
@@ -27,7 +27,7 @@ pnpm dev
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
 
-公开档案包含首页地图与摘要、`/map/` 筛选地图、`/pre-home/` 地球首页（Scope × View）、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。
+公开档案包含首页地球（Scope × View）与摘要、`/map/` 筛选地图、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。
 
 `/map/` 提供 All 重置、访问年份和旅程筛选；年份与旅程同时选择时取地点集合交集，结果始终按 Place 去重。点位、筛选和同步地点列表均可用键盘操作；手机不依赖 hover，选择后通过明确链接进入详情。零点显示空状态，单点使用适当缩放，多点自动适配视野，同坐标或密集点位仍可从列表选择。
 
@@ -49,7 +49,7 @@ pnpm dev
 | `pnpm db:migrate:local` | 仅将 migrations 应用到 local D1 |
 | `pnpm db:seed:local` | 仅将开发 seed 导入 local D1 |
 | `pnpm db:migrate:production` | 明确将 migrations 应用到远程生产 D1 |
-| `pnpm data:night-lights` | 重新生成 pre-home 夜面灯光数据 |
+| `pnpm data:night-lights` | 重新生成首页地球的夜面灯光数据 |
 | `pnpm data:china-boundary` | 从授权源数据重新生成中国国境线、岛屿、南海断续线 |
 | `pnpm data:china-administrative` | 重新生成中国国家与省级行政面 |
 | `pnpm data:world-administrative` | 从 Natural Earth 重新生成世界国家面 |
@@ -117,17 +117,19 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 
 | 页面 | 组件 | 底图 |
 | --- | --- | --- |
-| `/`、`/map/` | `components/InteractiveMap.astro` | OpenStreetMap Standard raster tiles |
-| `/pre-home/` | `components/PreHomeGlobe.astro` | NASA EOSDIS GIBS Blue Marble（卫星影像） |
+| `/`（首页） | `components/PreHomeGlobe.astro` | NASA EOSDIS GIBS Blue Marble（卫星影像） |
+| `/map/` | `components/InteractiveMap.astro` | OpenStreetMap Standard raster tiles |
 
-- OSM 瓦片为 `https://tile.openstreetmap.org/{z}/{x}/{y}.png`，数据遵循 [ODbL](https://www.openstreetmap.org/copyright)，瓦片使用遵循 [OSMF Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)。pre-home 使用 NASA GIBS 影像并署名，另叠加随时间移动的晨昏线与夜面灯光（`public/data/night-lights.json`，由 `pnpm data:night-lights` 一次性生成）。
+`/pre-home/` 301 跳转到 `/` —— 地球作为候选首页时用的是那个地址，保留跳转以免旧链接失效。
+
+- OSM 瓦片为 `https://tile.openstreetmap.org/{z}/{x}/{y}.png`，数据遵循 [ODbL](https://www.openstreetmap.org/copyright)，瓦片使用遵循 [OSMF Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)。首页地球使用 NASA GIBS 影像并署名，另叠加随时间移动的晨昏线与夜面灯光（`public/data/night-lights.json`，由 `pnpm data:night-lights` 一次性生成）。
 - 浏览器只请求当前视野所需瓦片，保留浏览器默认 Referer 和缓存行为；不代理、预取、批量下载或提供离线地图。OSM 标准瓦片为 best-effort 服务，未来流量增长或生产政策需要时可通过集中配置切换供应商。
 - D1 保存并向地图传递 WGS84 纬度、经度；不进行 GCJ-02 或其他坐标转换。旅程详情的连线仅表达访问顺序，不代表道路、GPS 轨迹或距离。
 - 瓦片或脚本加载失败时，导航、筛选前的服务端地点列表和详情入口仍保留；禁用 JavaScript 时也可浏览全部地点。
 
-## Pre-home 的 Scope 与 View
+## 首页地球的 Scope 与 View
 
-`/pre-home/` 的地图状态是两个**互相独立**的维度，不是一组平铺的模式：
+首页地球的地图状态是两个**互相独立**的维度，不是一组平铺的模式：
 
 - **Scope**：`World` / `China`，决定观察范围与相机。
 - **View**：`Journey` / `Footprint`，决定用什么方式表达旅行数据。

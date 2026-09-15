@@ -2,6 +2,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapJourneyRoute, MapPoint } from "../types/domain";
 import { isChinaCountry } from "../lib/map/globe";
+import { DEFAULT_SCOPE, DEFAULT_VIEW, captionFor } from "../lib/map/globe-state";
 
 interface Props {
   points: MapPoint[];
@@ -23,16 +24,20 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
   {points.length ? (
     <div class="globe-experience">
+      {/* Defaults come from globe-state.ts rather than being written out here,
+          so the markup cannot drift from DEFAULT_SCOPE / DEFAULT_VIEW and flash
+          the wrong state before the script runs. Scope on the left, View on the
+          right; the View order puts the default first. */}
       <div class="globe-toolbar" aria-label="Globe controls">
         <div class="globe-mode" role="group" aria-label="Map extent">
-          <button type="button" class="is-active" aria-pressed="true" data-globe-scope="world">World</button>
-          <button type="button" aria-pressed="false" data-globe-scope="china">China</button>
+          <button type="button" class:list={{ "is-active": DEFAULT_SCOPE === "world" }} aria-pressed={DEFAULT_SCOPE === "world"} data-globe-scope="world">World</button>
+          <button type="button" class:list={{ "is-active": DEFAULT_SCOPE === "china" }} aria-pressed={DEFAULT_SCOPE === "china"} data-globe-scope="china">China</button>
         </div>
         <div class="globe-mode" role="group" aria-label="Map view">
-          <button type="button" class="is-active" aria-pressed="true" data-globe-view="journey">Journey</button>
-          <button type="button" aria-pressed="false" data-globe-view="footprint">Footprint</button>
+          <button type="button" class:list={{ "is-active": DEFAULT_VIEW === "footprint" }} aria-pressed={DEFAULT_VIEW === "footprint"} data-globe-view="footprint">Footprint</button>
+          <button type="button" class:list={{ "is-active": DEFAULT_VIEW === "journey" }} aria-pressed={DEFAULT_VIEW === "journey"} data-globe-view="journey">Journey</button>
         </div>
-        <label data-journey-selector>
+        <label data-journey-selector hidden={DEFAULT_VIEW !== "journey"}>
           <span>Journey</span>
           <select data-globe-journey aria-label="Show a journey visit sequence">
             <option value="">Places only</option>
@@ -43,7 +48,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
             ))}
           </select>
         </label>
-        <p data-globe-caption>Visit sequence · not a tracked route</p>
+        <p data-globe-caption>{captionFor(DEFAULT_VIEW)}</p>
       </div>
 
       <div class="globe-stage">

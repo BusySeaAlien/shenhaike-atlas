@@ -24,10 +24,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const pathname = context.url.pathname;
   if (pathname !== "/guillaume" && !pathname.startsWith("/guillaume/")) {
     const response = await next();
+    // /pre-home/ is deliberately absent: it is a permanent redirect, and those
+    // should stay cacheable rather than be forced to no-store.
     const dynamicArchiveRoute =
       pathname === "/" ||
-      pathname === "/pre-home" ||
-      pathname === "/pre-home/" ||
       pathname === "/map" ||
       pathname === "/map/" ||
       pathname === "/journeys" ||

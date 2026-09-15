@@ -2,7 +2,7 @@
 
 > 项目仓库：`shenhaike-pre-home`
 >
-> 页面：`/pre-home/`
+> 页面：`/`（本文写于该地球页面位于 `/pre-home/` 时；`/pre-home/` 现 301 跳转到 `/`）
 >
 > 功能：Administrative Footprint / 行政足迹模式
 >

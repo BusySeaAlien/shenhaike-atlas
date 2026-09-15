@@ -14,7 +14,16 @@ export type ScopeMode = "world" | "china";
 export type ViewMode = "journey" | "footprint";
 
 export const DEFAULT_SCOPE: ScopeMode = "world";
-export const DEFAULT_VIEW: ViewMode = "journey";
+
+/**
+ * Footprint opens first, ahead of Journey.
+ *
+ * Note this is the one documented default the project chose to invert: the
+ * handoff opened on Journey so the first visit matched the previous homepage.
+ * The trade-off is that World Footprint requests `world-admin0` on first load,
+ * where Journey requested nothing (see §46/§103).
+ */
+export const DEFAULT_VIEW: ViewMode = "footprint";
 
 /** What `applyMapState` has to show for the current pair. */
 export interface GlobeVisibilityPlan {
