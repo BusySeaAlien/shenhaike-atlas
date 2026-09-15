@@ -30,7 +30,12 @@ export const CHINA_OVERVIEW_PADDING = { top: 20, right: 56, bottom: 20, left: 20
 export const GLOBE_ROTATION = {
   degreesPerSecond: 0.7,
   idleDelay: 1_000,
+  maxZoom: 2.5,
 } as const;
+
+export function rotationAllowedAtZoom(zoom: number): boolean {
+  return zoom <= GLOBE_ROTATION.maxZoom;
+}
 
 function normalizeLongitude(longitude: number): number {
   return ((longitude + 180) % 360 + 360) % 360 - 180;

@@ -8,6 +8,7 @@ import {
   nightLightsGeoJson,
   journeyLineGeoJson,
   pointsForMode,
+  rotationAllowedAtZoom,
   routeAvailableInMode,
   splitAntimeridian,
   subsolarPoint,
@@ -37,6 +38,8 @@ describe("globe data helpers", () => {
     expect(WORLD_CAMERA.zoom).toBeGreaterThan(1);
     expect(GLOBE_ROTATION.degreesPerSecond).toBeGreaterThan(0);
     expect(GLOBE_ROTATION.idleDelay).toBe(1_000);
+    expect(rotationAllowedAtZoom(GLOBE_ROTATION.maxZoom)).toBe(true);
+    expect(rotationAllowedAtZoom(GLOBE_ROTATION.maxZoom + 0.01)).toBe(false);
   });
 
   it("frames the mainland and the South China Sea together in China mode", () => {

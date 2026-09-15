@@ -107,6 +107,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     journeyStopsGeoJson,
     nightLightsGeoJson,
     pointsForMode,
+    rotationAllowedAtZoom,
     routeAvailableInMode,
     type ScopeMode,
     type NightLightPoint,
@@ -170,7 +171,11 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
     let map: maplibregl.Map;
 
-    const canRotate = () => scopeMode === "world" && !reducedMotion.matches && mapVisible && !document.hidden;
+    const canRotate = () => scopeMode === "world"
+      && rotationAllowedAtZoom(map.getZoom())
+      && !reducedMotion.matches
+      && mapVisible
+      && !document.hidden;
     const stopRotation = () => {
       if (frameId) window.cancelAnimationFrame(frameId);
       frameId = 0;
@@ -392,6 +397,12 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       });
       map.touchZoomRotate.disableRotation();
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      map.on("zoom", () => {
+        if (!rotationAllowedAtZoom(map.getZoom())) stopRotation();
+      });
+      map.on("zoomend", () => {
+        if (rotationAllowedAtZoom(map.getZoom())) pauseRotation();
+      });
       map.on("error", (event: MapEventType["error"]) => {
         if (event.error?.message.toLowerCase().includes("tile")) {
           root.classList.add("has-map-error");
