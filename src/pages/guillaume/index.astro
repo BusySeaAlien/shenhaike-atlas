@@ -5,14 +5,14 @@ import { getDatabase } from "../../lib/db/client";
 const db = getDatabase();
 const counts = await db.prepare(`
   SELECT
-    (SELECT COUNT(*) FROM places) AS places,
-    (SELECT COUNT(*) FROM journeys) AS journeys,
-    (SELECT COUNT(*) FROM visits) AS visits
+    (SELECT COUNT(*) FROM atlas_places) AS places,
+    (SELECT COUNT(*) FROM atlas_journeys) AS journeys,
+    (SELECT COUNT(*) FROM atlas_visits) AS visits
 `).first<{ places: number; journeys: number; visits: number }>();
 const { results: recent } = await db.prepare(`
-  SELECT 'Place' AS type, id, name, updated_at FROM places
+  SELECT 'Place' AS type, id, name, updated_at FROM atlas_places
   UNION ALL
-  SELECT 'Journey' AS type, id, name, updated_at FROM journeys
+  SELECT 'Journey' AS type, id, name, updated_at FROM atlas_journeys
   ORDER BY updated_at DESC LIMIT 8
 `).all<{ type: "Place" | "Journey"; id: number; name: string; updated_at: string }>();
 ---

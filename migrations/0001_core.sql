@@ -1,6 +1,6 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE places (
+CREATE TABLE atlas_places (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   slug TEXT NOT NULL UNIQUE
     CHECK (length(slug) BETWEEN 1 AND 100),
@@ -26,7 +26,7 @@ CREATE TABLE places (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
-CREATE TABLE journeys (
+CREATE TABLE atlas_journeys (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   slug TEXT NOT NULL UNIQUE
     CHECK (length(slug) BETWEEN 1 AND 100),
@@ -47,7 +47,7 @@ CREATE TABLE journeys (
   CHECK (start_date <= end_date)
 );
 
-CREATE TABLE visits (
+CREATE TABLE atlas_visits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   place_id INTEGER NOT NULL,
   journey_id INTEGER NOT NULL,
@@ -57,20 +57,20 @@ CREATE TABLE visits (
   notes TEXT CHECK (notes IS NULL OR length(notes) <= 3000),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE RESTRICT,
-  FOREIGN KEY (journey_id) REFERENCES journeys(id) ON DELETE CASCADE,
+  FOREIGN KEY (place_id) REFERENCES atlas_places(id) ON DELETE RESTRICT,
+  FOREIGN KEY (journey_id) REFERENCES atlas_journeys(id) ON DELETE CASCADE,
   UNIQUE (journey_id, sequence)
 );
 
-CREATE INDEX visits_place_id_idx ON visits(place_id);
-CREATE INDEX visits_journey_sequence_idx ON visits(journey_id, sequence);
-CREATE INDEX visits_visited_at_idx ON visits(visited_at DESC, id DESC);
+CREATE INDEX atlas_visits_place_id_idx ON atlas_visits(place_id);
+CREATE INDEX atlas_visits_journey_sequence_idx ON atlas_visits(journey_id, sequence);
+CREATE INDEX atlas_visits_visited_at_idx ON atlas_visits(visited_at DESC, id DESC);
 
-CREATE TRIGGER visits_date_within_journey_insert
-BEFORE INSERT ON visits
+CREATE TRIGGER atlas_visits_date_within_journey_insert
+BEFORE INSERT ON atlas_visits
 FOR EACH ROW
 WHEN NOT EXISTS (
-  SELECT 1 FROM journeys
+  SELECT 1 FROM atlas_journeys
   WHERE id = NEW.journey_id
     AND NEW.visited_at BETWEEN start_date AND end_date
 )
@@ -78,11 +78,11 @@ BEGIN
   SELECT RAISE(ABORT, 'visit date outside journey range');
 END;
 
-CREATE TRIGGER visits_date_within_journey_update
-BEFORE UPDATE OF journey_id, visited_at ON visits
+CREATE TRIGGER atlas_visits_date_within_journey_update
+BEFORE UPDATE OF journey_id, visited_at ON atlas_visits
 FOR EACH ROW
 WHEN NOT EXISTS (
-  SELECT 1 FROM journeys
+  SELECT 1 FROM atlas_journeys
   WHERE id = NEW.journey_id
     AND NEW.visited_at BETWEEN start_date AND end_date
 )
@@ -90,11 +90,11 @@ BEGIN
   SELECT RAISE(ABORT, 'visit date outside journey range');
 END;
 
-CREATE TRIGGER journey_dates_contain_visits
-BEFORE UPDATE OF start_date, end_date ON journeys
+CREATE TRIGGER atlas_journey_dates_contain_visits
+BEFORE UPDATE OF start_date, end_date ON atlas_journeys
 FOR EACH ROW
 WHEN EXISTS (
-  SELECT 1 FROM visits
+  SELECT 1 FROM atlas_visits
   WHERE journey_id = NEW.id
     AND visited_at NOT BETWEEN NEW.start_date AND NEW.end_date
 )

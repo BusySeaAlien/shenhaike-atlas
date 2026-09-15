@@ -25,9 +25,9 @@ export async function readDatabaseHealth(): Promise<DatabaseHealth> {
   const counts = await db
     .prepare(`
       SELECT
-        (SELECT COUNT(*) FROM places) AS places,
-        (SELECT COUNT(*) FROM journeys) AS journeys,
-        (SELECT COUNT(*) FROM visits) AS visits
+        (SELECT COUNT(*) FROM atlas_places) AS places,
+        (SELECT COUNT(*) FROM atlas_journeys) AS journeys,
+        (SELECT COUNT(*) FROM atlas_visits) AS visits
     `)
     .first<CountRow>();
   if (!counts) throw new Error("Atlas core schema has not been initialized.");

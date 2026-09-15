@@ -19,14 +19,14 @@ function validated(input: PlaceInput): PlaceInput {
 
 export async function listPlaces(db: D1Database): Promise<Place[]> {
   const { results } = await db
-    .prepare(`SELECT ${PLACE_COLUMNS} FROM places ORDER BY name COLLATE NOCASE, id`)
+    .prepare(`SELECT ${PLACE_COLUMNS} FROM atlas_places ORDER BY name COLLATE NOCASE, id`)
     .all<PlaceRow>();
   return results.map(toPlace);
 }
 
 export async function getPlaceBySlug(db: D1Database, slug: string): Promise<Place | null> {
   const row = await db
-    .prepare(`SELECT ${PLACE_COLUMNS} FROM places WHERE slug = ?1`)
+    .prepare(`SELECT ${PLACE_COLUMNS} FROM atlas_places WHERE slug = ?1`)
     .bind(slug)
     .first<PlaceRow>();
   return row ? toPlace(row) : null;
@@ -34,7 +34,7 @@ export async function getPlaceBySlug(db: D1Database, slug: string): Promise<Plac
 
 export async function getPlaceById(db: D1Database, id: number): Promise<Place | null> {
   const row = await db
-    .prepare(`SELECT ${PLACE_COLUMNS} FROM places WHERE id = ?1`)
+    .prepare(`SELECT ${PLACE_COLUMNS} FROM atlas_places WHERE id = ?1`)
     .bind(id)
     .first<PlaceRow>();
   return row ? toPlace(row) : null;
@@ -47,7 +47,7 @@ export async function createPlace(db: D1Database, input: PlaceInput): Promise<Pl
   try {
     const row = await db
       .prepare(`
-        INSERT INTO places (
+        INSERT INTO atlas_places (
           slug, name, name_zh, country, region, city, latitude, longitude,
           sovereign_country_code, admin1_code, description, cover
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
@@ -91,7 +91,7 @@ export async function updatePlace(
   try {
     const row = await db
       .prepare(`
-        UPDATE places SET
+        UPDATE atlas_places SET
           slug = ?1, name = ?2, name_zh = ?3, country = ?4, region = ?5,
           city = ?6, latitude = ?7, longitude = ?8,
           sovereign_country_code = ?9, admin1_code = ?10,
@@ -128,13 +128,13 @@ export async function updatePlace(
 
 export async function deletePlace(db: D1Database, id: number): Promise<void> {
   const reference = await db
-    .prepare("SELECT COUNT(*) AS count FROM visits WHERE place_id = ?1")
+    .prepare("SELECT COUNT(*) AS count FROM atlas_visits WHERE place_id = ?1")
     .bind(id)
     .first<{ count: number }>();
   if ((reference?.count ?? 0) > 0) {
     throw new DataError("conflict", `该地点仍关联 ${reference?.count} 条访问记录，不能删除`);
   }
 
-  const result = await db.prepare("DELETE FROM places WHERE id = ?1").bind(id).run();
+  const result = await db.prepare("DELETE FROM atlas_places WHERE id = ?1").bind(id).run();
   if (result.meta.changes === 0) throw new DataError("not_found", "地点不存在");
 }

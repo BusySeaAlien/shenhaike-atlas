@@ -20,7 +20,7 @@ function execute(sql) {
   const output = run([
     "d1",
     "execute",
-    "atlas",
+    "shenhaike",
     "--local",
     "--persist-to",
     stateDirectory,
@@ -50,7 +50,7 @@ try {
     "d1",
     "migrations",
     "apply",
-    "atlas",
+    "shenhaike",
     "--local",
     "--persist-to",
     stateDirectory,
@@ -58,7 +58,7 @@ try {
   run([
     "d1",
     "execute",
-    "atlas",
+    "shenhaike",
     "--local",
     "--persist-to",
     stateDirectory,
@@ -69,71 +69,71 @@ try {
   const counts = firstRow(
     execute(`
       SELECT
-        (SELECT COUNT(*) FROM places) AS places,
-        (SELECT COUNT(*) FROM journeys) AS journeys,
-        (SELECT COUNT(*) FROM visits) AS visits
+        (SELECT COUNT(*) FROM atlas_places) AS atlas_places,
+        (SELECT COUNT(*) FROM atlas_journeys) AS atlas_journeys,
+        (SELECT COUNT(*) FROM atlas_visits) AS atlas_visits
     `),
   );
-  if (counts?.places !== 5 || counts?.journeys !== 4 || counts?.visits !== 9) {
+  if (counts?.atlas_places !== 5 || counts?.atlas_journeys !== 4 || counts?.atlas_visits !== 9) {
     throw new Error(`Unexpected seed counts: ${JSON.stringify(counts)}`);
   }
 
   const repeats = firstRow(
     execute(`
-      SELECT COUNT(*) AS count FROM visits
-      WHERE place_id = (SELECT id FROM places WHERE slug = 'shanghai-pudong-airport')
+      SELECT COUNT(*) AS count FROM atlas_visits
+      WHERE place_id = (SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport')
     `),
   );
   if ((repeats?.count ?? 0) < 2) throw new Error("Seed does not cover repeat visits.");
 
   expectFailure(
     "duplicate place slug",
-    `INSERT INTO places (slug, name, country, latitude, longitude)
+    `INSERT INTO atlas_places (slug, name, country, latitude, longitude)
      VALUES ('sayram-lake', 'Duplicate', 'China', 1, 1)`,
   );
   expectFailure(
     "invalid latitude",
-    `INSERT INTO places (slug, name, country, latitude, longitude)
+    `INSERT INTO atlas_places (slug, name, country, latitude, longitude)
      VALUES ('invalid-coordinate', 'Invalid', 'China', 91, 1)`,
   );
   expectFailure(
     "missing foreign keys",
-    `INSERT INTO visits (place_id, journey_id, visited_at, sequence)
+    `INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence)
      VALUES (99999, 99999, '2026-01-01', 1)`,
   );
   expectFailure(
     "visit outside journey range",
-    `INSERT INTO visits (place_id, journey_id, visited_at, sequence)
+    `INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence)
      VALUES (
-       (SELECT id FROM places WHERE slug = 'sayram-lake'),
-       (SELECT id FROM journeys WHERE slug = 'xinjiang-2026'),
+       (SELECT id FROM atlas_places WHERE slug = 'sayram-lake'),
+       (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'),
        '2026-01-01',
        90
      )`,
   );
   expectFailure(
     "referenced place deletion",
-    `DELETE FROM places WHERE slug = 'sayram-lake'`,
+    `DELETE FROM atlas_places WHERE slug = 'sayram-lake'`,
   );
   expectFailure(
     "journey range excluding visits",
-    `UPDATE journeys SET start_date = '2026-08-18' WHERE slug = 'xinjiang-2026'`,
+    `UPDATE atlas_journeys SET start_date = '2026-08-18' WHERE slug = 'xinjiang-2026'`,
   );
 
   execute(`
-    INSERT INTO journeys (slug, name, start_date, end_date)
+    INSERT INTO atlas_journeys (slug, name, start_date, end_date)
     VALUES ('cascade-check', 'Cascade Check', '2026-09-01', '2026-09-02');
-    INSERT INTO visits (place_id, journey_id, visited_at, sequence)
+    INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence)
     VALUES (
-      (SELECT id FROM places WHERE slug = 'sayram-lake'),
-      (SELECT id FROM journeys WHERE slug = 'cascade-check'),
+      (SELECT id FROM atlas_places WHERE slug = 'sayram-lake'),
+      (SELECT id FROM atlas_journeys WHERE slug = 'cascade-check'),
       '2026-09-01',
       1
     );
-    DELETE FROM journeys WHERE slug = 'cascade-check';
+    DELETE FROM atlas_journeys WHERE slug = 'cascade-check';
   `);
   const orphan = firstRow(
-    execute(`SELECT COUNT(*) AS count FROM visits WHERE journey_id NOT IN (SELECT id FROM journeys)`),
+    execute(`SELECT COUNT(*) AS count FROM atlas_visits WHERE journey_id NOT IN (SELECT id FROM atlas_journeys)`),
   );
   if (orphan?.count !== 0) throw new Error("Journey deletion left orphan visits.");
 

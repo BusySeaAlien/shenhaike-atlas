@@ -69,7 +69,7 @@ node scripts/backfill-administrative-codes.ts --apply --remote   # 写入生产
 
 ## 生产 D1（尚未创建）
 
-`wrangler.jsonc` 中全零的 `database_id` 是安全的本地占位值。创建生产 D1 后，必须将其替换为 Cloudflare 返回的真实 ID，完成 migration 验证后才可运行生产命令或部署。不要把测试数据导入生产。
+生产 D1 统一命名为 `shenhaike`，Atlas 在共享数据库中使用 `atlas_` 前缀隔离表、索引和触发器。`wrangler.jsonc` 中全零的 `database_id` 是安全的本地占位值。创建生产 D1 后，必须将其替换为 Cloudflare 返回的真实 ID，完成 migration 验证后才可运行生产命令或部署。不要把测试数据导入生产。
 
 ## 私人后台与 Cloudflare Access
 

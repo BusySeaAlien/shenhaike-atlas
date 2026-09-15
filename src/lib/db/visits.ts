@@ -16,13 +16,13 @@ function validated(input: VisitInput): VisitInput {
 
 async function assertRelationsAndDate(db: D1Database, value: VisitInput): Promise<void> {
   const place = await db
-    .prepare("SELECT id FROM places WHERE id = ?1")
+    .prepare("SELECT id FROM atlas_places WHERE id = ?1")
     .bind(value.placeId)
     .first<{ id: number }>();
   if (!place) throw new DataError("validation", "地点不存在", { placeId: "请选择有效地点" });
 
   const journey = await db
-    .prepare("SELECT start_date, end_date FROM journeys WHERE id = ?1")
+    .prepare("SELECT start_date, end_date FROM atlas_journeys WHERE id = ?1")
     .bind(value.journeyId)
     .first<{ start_date: string; end_date: string }>();
   if (!journey) throw new DataError("validation", "旅程不存在", { journeyId: "请选择有效旅程" });
@@ -45,7 +45,7 @@ function normalizeWriteError(error: unknown): never {
 export async function listJourneyVisits(db: D1Database, journeyId: number): Promise<Visit[]> {
   const { results } = await db
     .prepare(`
-      SELECT ${VISIT_COLUMNS} FROM visits
+      SELECT ${VISIT_COLUMNS} FROM atlas_visits
       WHERE journey_id = ?1 ORDER BY sequence, id
     `)
     .bind(journeyId)
@@ -55,7 +55,7 @@ export async function listJourneyVisits(db: D1Database, journeyId: number): Prom
 
 export async function listTimelineVisits(db: D1Database): Promise<Visit[]> {
   const { results } = await db
-    .prepare(`SELECT ${VISIT_COLUMNS} FROM visits ORDER BY visited_at DESC, id DESC`)
+    .prepare(`SELECT ${VISIT_COLUMNS} FROM atlas_visits ORDER BY visited_at DESC, id DESC`)
     .all<VisitRow>();
   return results.map(toVisit);
 }
@@ -66,7 +66,7 @@ export async function createVisit(db: D1Database, input: VisitInput): Promise<Vi
   try {
     const row = await db
       .prepare(`
-        INSERT INTO visits (place_id, journey_id, visited_at, sequence, notes)
+        INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, notes)
         VALUES (?1, ?2, ?3, ?4, ?5)
         RETURNING ${VISIT_COLUMNS}
       `)
@@ -89,7 +89,7 @@ export async function updateVisit(
   try {
     const row = await db
       .prepare(`
-        UPDATE visits SET
+        UPDATE atlas_visits SET
           place_id = ?1, journey_id = ?2, visited_at = ?3, sequence = ?4, notes = ?5,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?6
@@ -108,24 +108,24 @@ export async function deleteVisit(db: D1Database, id: number): Promise<void> {
   const visit = await db
     .prepare(`
       SELECT journey_id, sequence,
-        (SELECT COALESCE(MAX(sequence), 0) FROM visits grouped WHERE grouped.journey_id = visits.journey_id) AS maximum
-      FROM visits WHERE id = ?1
+        (SELECT COALESCE(MAX(sequence), 0) FROM atlas_visits grouped WHERE grouped.journey_id = atlas_visits.journey_id) AS maximum
+      FROM atlas_visits WHERE id = ?1
     `)
     .bind(id)
     .first<{ journey_id: number; sequence: number; maximum: number }>();
   if (!visit) throw new DataError("not_found", "访问记录不存在");
   const offset = visit.maximum + 1;
   await db.batch([
-    db.prepare("DELETE FROM visits WHERE id = ?1").bind(id),
+    db.prepare("DELETE FROM atlas_visits WHERE id = ?1").bind(id),
     db
       .prepare(`
-        UPDATE visits SET sequence = sequence + ?1
+        UPDATE atlas_visits SET sequence = sequence + ?1
         WHERE journey_id = ?2 AND sequence > ?3
       `)
       .bind(offset, visit.journey_id, visit.sequence),
     db
       .prepare(`
-        UPDATE visits SET sequence = sequence - ?1 - 1,
+        UPDATE atlas_visits SET sequence = sequence - ?1 - 1,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE journey_id = ?2 AND sequence > ?3 + ?1
       `)
@@ -146,7 +146,7 @@ export async function reorderVisits(
   }
 
   const { results: existing } = await db
-    .prepare("SELECT id FROM visits WHERE journey_id = ?1 ORDER BY sequence, id")
+    .prepare("SELECT id FROM atlas_visits WHERE journey_id = ?1 ORDER BY sequence, id")
     .bind(journeyId)
     .all<{ id: number }>();
   const expected = existing.map(({ id }) => id).sort((a, b) => a - b);
@@ -159,16 +159,16 @@ export async function reorderVisits(
   if (visitIds.length === 0) return;
 
   const maximum = await db
-    .prepare("SELECT COALESCE(MAX(sequence), 0) AS value FROM visits WHERE journey_id = ?1")
+    .prepare("SELECT COALESCE(MAX(sequence), 0) AS value FROM atlas_visits WHERE journey_id = ?1")
     .bind(journeyId)
     .first<{ value: number }>();
   const offset = (maximum?.value ?? 0) + visitIds.length + 1;
   const statements = [
-    db.prepare("UPDATE visits SET sequence = sequence + ?1 WHERE journey_id = ?2").bind(offset, journeyId),
+    db.prepare("UPDATE atlas_visits SET sequence = sequence + ?1 WHERE journey_id = ?2").bind(offset, journeyId),
     ...visitIds.map((id, index) =>
       db
         .prepare(`
-          UPDATE visits SET sequence = ?1,
+          UPDATE atlas_visits SET sequence = ?1,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
           WHERE id = ?2 AND journey_id = ?3
         `)

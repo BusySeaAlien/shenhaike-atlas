@@ -101,8 +101,8 @@ function toJourneySummary(row: JourneySummaryRow): JourneySummary {
 export async function listVisitedPlaces(db: D1Database): Promise<VisitedPlaceSummary[]> {
   const { results } = await db.prepare(`
     SELECT ${PLACE_COLUMNS}, MAX(v.visited_at) AS last_visited_at, COUNT(v.id) AS visit_count
-    FROM places p
-    INNER JOIN visits v ON v.place_id = p.id
+    FROM atlas_places p
+    INNER JOIN atlas_visits v ON v.place_id = p.id
     GROUP BY p.id
     ORDER BY last_visited_at DESC, p.id DESC
   `).all<VisitedPlaceRow>();
@@ -114,8 +114,8 @@ export async function listJourneySummaries(db: D1Database): Promise<JourneySumma
     SELECT ${JOURNEY_COLUMNS},
       COUNT(DISTINCT v.place_id) AS place_count,
       COUNT(v.id) AS visit_count
-    FROM journeys j
-    LEFT JOIN visits v ON v.journey_id = j.id
+    FROM atlas_journeys j
+    LEFT JOIN atlas_visits v ON v.journey_id = j.id
     GROUP BY j.id
     ORDER BY j.start_date DESC, j.id DESC
   `).all<JourneySummaryRow>();
@@ -126,9 +126,9 @@ export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData>
   const { results } = await db.prepare(`
     SELECT ${PLACE_COLUMNS}, v.visited_at,
       j.slug AS journey_slug, j.name AS journey_name, j.name_zh AS journey_name_zh
-    FROM visits v
-    INNER JOIN places p ON p.id = v.place_id
-    INNER JOIN journeys j ON j.id = v.journey_id
+    FROM atlas_visits v
+    INNER JOIN atlas_places p ON p.id = v.place_id
+    INNER JOIN atlas_journeys j ON j.id = v.journey_id
     ORDER BY v.visited_at DESC, v.id DESC
   `).all<MapVisitRow>();
 
@@ -186,9 +186,9 @@ export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
         j.start_date, j.end_date,
         p.id AS place_id, p.slug AS place_slug, p.name AS place_name,
         p.name_zh AS place_name_zh, p.country, p.latitude, p.longitude
-      FROM visits v
-      INNER JOIN journeys j ON j.id = v.journey_id
-      INNER JOIN places p ON p.id = v.place_id
+      FROM atlas_visits v
+      INNER JOIN atlas_journeys j ON j.id = v.journey_id
+      INNER JOIN atlas_places p ON p.id = v.place_id
       ORDER BY j.start_date DESC, j.id DESC, v.sequence, v.id
     `).all<PreHomeVisitRow>(),
   ]);
@@ -255,8 +255,8 @@ export async function getPlaceDetail(
     SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.notes,
       v.created_at, v.updated_at,
       j.slug AS journey_slug, j.name AS journey_name, j.name_zh AS journey_name_zh
-    FROM visits v
-    INNER JOIN journeys j ON j.id = v.journey_id
+    FROM atlas_visits v
+    INNER JOIN atlas_journeys j ON j.id = v.journey_id
     WHERE v.place_id = ?1
     ORDER BY v.visited_at DESC, v.id DESC
   `).bind(place.id).all<PlaceVisitRow>();
@@ -282,8 +282,8 @@ export async function getJourneyDetail(
       v.created_at, v.updated_at,
       p.slug AS place_slug, p.name AS place_name, p.name_zh AS place_name_zh,
       p.latitude, p.longitude
-    FROM visits v
-    INNER JOIN places p ON p.id = v.place_id
+    FROM atlas_visits v
+    INNER JOIN atlas_places p ON p.id = v.place_id
     WHERE v.journey_id = ?1
     ORDER BY v.sequence, v.id
   `).bind(journey.id).all<JourneyVisitRow>();
@@ -307,9 +307,9 @@ export async function listTimeline(db: D1Database): Promise<TimelineVisit[]> {
       p.slug AS place_slug, p.name AS place_name, p.name_zh AS place_name_zh,
       p.latitude, p.longitude,
       j.slug AS journey_slug, j.name AS journey_name, j.name_zh AS journey_name_zh
-    FROM visits v
-    INNER JOIN places p ON p.id = v.place_id
-    INNER JOIN journeys j ON j.id = v.journey_id
+    FROM atlas_visits v
+    INNER JOIN atlas_places p ON p.id = v.place_id
+    INNER JOIN atlas_journeys j ON j.id = v.journey_id
     ORDER BY v.visited_at DESC, v.id DESC
   `).all<TimelineVisitRow>();
   return results.map((row) => ({

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * One-time backfill of `places.sovereign_country_code` / `places.admin1_code`
+ * One-time backfill of `atlas_places.sovereign_country_code` / `atlas_places.admin1_code`
  * for rows created before those columns existed (handoff §61-§63).
  *
  *   node scripts/backfill-administrative-codes.ts              # dry run
@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { resolveAdministrativeLocation } from "../src/lib/map/administrative/location.ts";
 
 const CHINA = "CHN";
-const PLAYER = "places";
+const PLAYER = "atlas_places";
 
 interface PlaceRow {
   id: number;
