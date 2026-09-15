@@ -2,6 +2,12 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "shenhaike-atlas",
   "compatibility_date": "2026-09-13",
+  "routes": [
+    {
+      "pattern": "atlas.shenhaike.com",
+      "custom_domain": true
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
