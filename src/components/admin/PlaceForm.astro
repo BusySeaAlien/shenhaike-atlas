@@ -43,10 +43,14 @@ const method = place ? "PATCH" : "POST";
     if (submit) submit.disabled = true;
     if (status) status.textContent = "Saving…";
     const data = new FormData(form);
+    const numberOrNull = (value: FormDataEntryValue | null): number | null => {
+      const text = typeof value === "string" ? value.trim() : "";
+      return text ? Number(text) : null;
+    };
     const payload = {
       name: data.get("name"), nameZh: data.get("nameZh"),
       country: data.get("country"), region: data.get("region"), city: data.get("city"),
-      latitude: Number(data.get("latitude")), longitude: Number(data.get("longitude")),
+      latitude: numberOrNull(data.get("latitude")), longitude: numberOrNull(data.get("longitude")),
       cover: data.get("cover"), description: data.get("description"),
     };
     try {

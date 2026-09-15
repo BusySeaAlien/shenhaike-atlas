@@ -1,4 +1,5 @@
 import type { Place, PlaceInput } from "../../types/domain";
+import { countryCodeForName } from "../countries";
 import { resolveAdministrativeLocation } from "../map/administrative/location";
 import { validatePlaceInput } from "../validation/domain";
 import { DataError, isUniqueConstraintError } from "./errors";
@@ -72,6 +73,13 @@ export async function createPlace(db: D1Database, input: PlaceInput): Promise<Pl
   const slug = await uniquePlaceSlug(db, value.name);
   // Derived from the coordinates, never taken from the request body (§14-§19).
   const location = resolveAdministrativeLocation(value.longitude, value.latitude);
+  const selectedCountryCode = countryCodeForName(value.country);
+  if (location.sovereignCountryCode && location.sovereignCountryCode !== selectedCountryCode) {
+    throw new DataError("validation", "国家与坐标不一致", {
+      country: "所选国家与经纬度对应的国家不一致",
+      longitude: "请检查经度是否完整",
+    });
+  }
   try {
     const row = await db
       .prepare(`
@@ -114,6 +122,13 @@ export async function updatePlace(
   // polygon data can change under a place too, and a redundant resolve is cheap
   // (§59).
   const location = resolveAdministrativeLocation(value.longitude, value.latitude);
+  const selectedCountryCode = countryCodeForName(value.country);
+  if (location.sovereignCountryCode && location.sovereignCountryCode !== selectedCountryCode) {
+    throw new DataError("validation", "国家与坐标不一致", {
+      country: "所选国家与经纬度对应的国家不一致",
+      longitude: "请检查经度是否完整",
+    });
+  }
   try {
     const row = await db
       .prepare(`
