@@ -1,9 +1,5 @@
-import countries from "i18n-iso-countries";
 import en from "i18n-iso-countries/langs/en.json";
 import zh from "i18n-iso-countries/langs/zh.json";
-
-countries.registerLocale(en);
-countries.registerLocale(zh);
 
 export interface CountryOption {
   code: string;
@@ -13,17 +9,21 @@ export interface CountryOption {
 
 const collator = new Intl.Collator("zh-CN-u-co-pinyin");
 
-export const COUNTRY_OPTIONS: CountryOption[] = Object.keys(countries.getAlpha2Codes())
+function localizedName(locale: typeof en | typeof zh, code: string): string {
+  const value = locale.countries[code as keyof typeof locale.countries];
+  if (Array.isArray(value)) return value[1] || value[0] || code;
+  return value || code;
+}
+
+export const COUNTRY_OPTIONS: CountryOption[] = Object.keys(en.countries)
   .map((alpha2) => ({
-    code: countries.alpha2ToAlpha3(alpha2) || alpha2,
-    name: countries.getName(alpha2, "en", { select: "alias" }) || alpha2,
-    nameZh: countries.getName(alpha2, "zh", { select: "alias" })
-      || countries.getName(alpha2, "en", { select: "alias" })
-      || alpha2,
+    code: alpha2,
+    name: localizedName(en, alpha2),
+    nameZh: localizedName(zh, alpha2),
   }))
   .sort((left, right) => {
-    if (left.code === "CHN") return -1;
-    if (right.code === "CHN") return 1;
+    if (left.code === "CN") return -1;
+    if (right.code === "CN") return 1;
     return collator.compare(left.nameZh, right.nameZh);
   });
 

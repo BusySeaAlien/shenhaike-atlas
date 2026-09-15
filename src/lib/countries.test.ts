@@ -3,7 +3,7 @@ import { COUNTRY_OPTIONS, isCountryName } from "./countries";
 
 describe("country options", () => {
   it("puts China first and exposes Chinese labels", () => {
-    expect(COUNTRY_OPTIONS[0]).toMatchObject({ code: "CHN", name: "China", nameZh: "中国" });
+    expect(COUNTRY_OPTIONS[0]).toMatchObject({ code: "CN", name: "China", nameZh: "中国" });
   });
 
   it("sorts the remaining Chinese names by pinyin", () => {
