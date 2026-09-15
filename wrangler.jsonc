@@ -1,13 +1,18 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "shenhaike-atlas",
-  "compatibility_date": "2026-09-13",
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "shenhaike",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
-  ]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "shenhaike-atlas",
+	"compatibility_date": "2026-09-13",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "shenhaike",
+			"database_id": "abb21822-40e5-4386-a6eb-dd37004f50dc",
+			"migrations_dir": "migrations"
+		},
+		{
+			"binding": "shenhaike",
+			"database_name": "shenhaike",
+			"database_id": "abb21822-40e5-4386-a6eb-dd37004f50dc"
+		}
+	]
 }
