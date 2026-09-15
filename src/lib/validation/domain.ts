@@ -1,4 +1,5 @@
 import type { JourneyInput, PlaceInput, VisitInput } from "../../types/domain";
+import { isCountryName } from "../countries";
 import type { ValidationResult } from "./result";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -45,7 +46,6 @@ export function isCalendarDate(value: string): boolean {
 
 export function validatePlaceInput(input: PlaceInput): ValidationResult<PlaceInput> {
   const errors: Record<string, string> = {};
-  const slug = requiredText(input.slug, "slug", 100, errors);
   const name = requiredText(input.name, "name", 160, errors);
   const country = requiredText(input.country, "country", 100, errors);
   const nameZh = optionalText(input.nameZh);
@@ -54,9 +54,7 @@ export function validatePlaceInput(input: PlaceInput): ValidationResult<PlaceInp
   const description = optionalText(input.description);
   const cover = optionalText(input.cover);
 
-  if (slug && !SLUG_PATTERN.test(slug)) {
-    errors.slug = "仅可使用小写字母、数字和单个连字符";
-  }
+  if (country && !isCountryName(country)) errors.country = "请选择列表中的国家";
   if (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90) {
     errors.latitude = "纬度必须在 -90 至 90 之间";
   }
@@ -73,7 +71,6 @@ export function validatePlaceInput(input: PlaceInput): ValidationResult<PlaceInp
   return {
     ok: true,
     value: {
-      slug,
       name,
       nameZh,
       country,

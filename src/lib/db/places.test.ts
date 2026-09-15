@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlaceInput } from "../../types/domain";
-import { createPlace, updatePlace } from "./places";
+import { createPlace, placeSlugBase, updatePlace } from "./places";
 
 /**
  * Gate for Phase 2 (handoff §107): the administrative codes must be derived
@@ -14,7 +14,6 @@ const PARIS = { longitude: 2.3522, latitude: 48.8566 };
 
 function input(overrides: Partial<PlaceInput> = {}): PlaceInput {
   return {
-    slug: "sample-place",
     name: "Sample Place",
     nameZh: null,
     country: "China",
@@ -74,11 +73,16 @@ function rowFor(overrides: Record<string, unknown> = {}) {
 }
 
 describe("createPlace administrative codes", () => {
+  it("generates a stable URL slug from the English name", () => {
+    expect(placeSlugBase("  Côte d’Azur  ")).toBe("cote-d-azur");
+    expect(placeSlugBase("上海")).toBe("place");
+  });
+
   it("writes codes resolved from the coordinates, not from the request body", async () => {
     const { db, statements } = fakeDatabase(rowFor());
     await createPlace(db, input());
 
-    const [insert] = statements;
+    const insert = statements.find((statement) => statement.sql.includes("INSERT INTO"))!;
     expect(insert.sql).toContain("sovereign_country_code");
     expect(insert.sql).toContain("admin1_code");
     expect(insert.values).toContain("CHN");
@@ -90,7 +94,7 @@ describe("createPlace administrative codes", () => {
     // The API layer never forwards these, but a hand-rolled request could.
     await createPlace(db, { ...input(), sovereignCountryCode: "TWN", admin1Code: "999999" } as PlaceInput);
 
-    const [insert] = statements;
+    const insert = statements.find((statement) => statement.sql.includes("INSERT INTO"))!;
     expect(insert.values).toContain("CHN");
     expect(insert.values).not.toContain("TWN");
     expect(insert.values).not.toContain("999999");
@@ -107,7 +111,7 @@ describe("createPlace administrative codes", () => {
     const { db, statements } = fakeDatabase(rowFor({ sovereign_country_code: "FRA", admin1_code: null }));
     await createPlace(db, input({ country: "France", region: null, ...PARIS }));
 
-    const [insert] = statements;
+    const insert = statements.find((statement) => statement.sql.includes("INSERT INTO"))!;
     expect(insert.values).toContain("FRA");
     expect(insert.values).not.toContain("310000");
   });
@@ -119,8 +123,9 @@ describe("updatePlace administrative codes", () => {
     await updatePlace(db, 1, input({ ...XINJIANG }));
 
     const [update] = statements;
-    expect(update.sql).toContain("sovereign_country_code = ?9");
-    expect(update.sql).toContain("admin1_code = ?10");
+    expect(update.sql).toContain("sovereign_country_code = ?8");
+    expect(update.sql).toContain("admin1_code = ?9");
+    expect(update.sql).not.toContain("slug =");
     expect(update.values).toContain("650000");
     expect(update.values).not.toContain("310000");
   });

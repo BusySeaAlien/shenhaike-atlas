@@ -17,6 +17,33 @@ function validated(input: PlaceInput): PlaceInput {
   return result.value;
 }
 
+export function placeSlugBase(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 88)
+    .replace(/-+$/g, "");
+  return slug || "place";
+}
+
+async function uniquePlaceSlug(db: D1Database, name: string): Promise<string> {
+  const base = placeSlugBase(name);
+  const { results } = await db
+    .prepare("SELECT slug FROM atlas_places WHERE slug = ?1 OR slug GLOB ?2")
+    .bind(base, `${base}-[0-9]*`)
+    .all<{ slug: string }>();
+  const used = new Set(results.map((row) => row.slug));
+  if (!used.has(base)) return base;
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  throw new DataError("conflict", "无法生成唯一的网址标识");
+}
+
 export async function listPlaces(db: D1Database): Promise<Place[]> {
   const { results } = await db
     .prepare(`SELECT ${PLACE_COLUMNS} FROM atlas_places ORDER BY name COLLATE NOCASE, id`)
@@ -42,6 +69,7 @@ export async function getPlaceById(db: D1Database, id: number): Promise<Place | 
 
 export async function createPlace(db: D1Database, input: PlaceInput): Promise<Place> {
   const value = validated(input);
+  const slug = await uniquePlaceSlug(db, value.name);
   // Derived from the coordinates, never taken from the request body (§14-§19).
   const location = resolveAdministrativeLocation(value.longitude, value.latitude);
   try {
@@ -54,7 +82,7 @@ export async function createPlace(db: D1Database, input: PlaceInput): Promise<Pl
         RETURNING ${PLACE_COLUMNS}
       `)
       .bind(
-        value.slug,
+        slug,
         value.name,
         value.nameZh,
         value.country,
@@ -71,9 +99,7 @@ export async function createPlace(db: D1Database, input: PlaceInput): Promise<Pl
     if (!row) throw new Error("Insert returned no place.");
     return toPlace(row);
   } catch (error) {
-    if (isUniqueConstraintError(error)) {
-      throw new DataError("conflict", "地点 slug 已存在", { slug: "该 slug 已被使用" });
-    }
+    if (isUniqueConstraintError(error)) throw new DataError("conflict", "地点网址标识冲突，请重试");
     throw error;
   }
 }
@@ -92,16 +118,15 @@ export async function updatePlace(
     const row = await db
       .prepare(`
         UPDATE atlas_places SET
-          slug = ?1, name = ?2, name_zh = ?3, country = ?4, region = ?5,
-          city = ?6, latitude = ?7, longitude = ?8,
-          sovereign_country_code = ?9, admin1_code = ?10,
-          description = ?11, cover = ?12,
+          name = ?1, name_zh = ?2, country = ?3, region = ?4,
+          city = ?5, latitude = ?6, longitude = ?7,
+          sovereign_country_code = ?8, admin1_code = ?9,
+          description = ?10, cover = ?11,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?13
+        WHERE id = ?12
         RETURNING ${PLACE_COLUMNS}
       `)
       .bind(
-        value.slug,
         value.name,
         value.nameZh,
         value.country,
@@ -119,9 +144,7 @@ export async function updatePlace(
     if (!row) throw new DataError("not_found", "地点不存在");
     return toPlace(row);
   } catch (error) {
-    if (isUniqueConstraintError(error)) {
-      throw new DataError("conflict", "地点 slug 已存在", { slug: "该 slug 已被使用" });
-    }
+    if (isUniqueConstraintError(error)) throw new DataError("conflict", "地点信息冲突");
     throw error;
   }
 }

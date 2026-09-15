@@ -1,5 +1,6 @@
 ---
 import type { Place } from "../../types/domain";
+import { COUNTRY_OPTIONS } from "../../lib/countries";
 
 interface Props { place?: Place }
 const { place } = Astro.props;
@@ -9,10 +10,9 @@ const method = place ? "PATCH" : "POST";
 
 <form class="admin-form" data-place-form data-action={action} data-method={method} novalidate>
   <div class="field-grid">
-    <div class="field"><label for="slug">Slug *</label><input id="slug" name="slug" required value={place?.slug} /><span class="field-error" data-error="slug"></span></div>
     <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={place?.name} /><span class="field-error" data-error="name"></span></div>
     <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={place?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
-    <div class="field"><label for="country">Country *</label><input id="country" name="country" required value={place?.country} /><span class="field-error" data-error="country"></span></div>
+    <div class="field"><label for="country">Country *</label><select id="country" name="country" required><option value="" disabled selected={!place?.country}>请选择国家</option>{COUNTRY_OPTIONS.map((country) => <option value={country.name} selected={place?.country === country.name}>{country.nameZh}（{country.name}）</option>)}</select><span class="field-error" data-error="country"></span></div>
     <div class="field"><label for="region">Region</label><input id="region" name="region" value={place?.region ?? ""} /><span class="field-error" data-error="region"></span></div>
     <div class="field"><label for="city">City</label><input id="city" name="city" value={place?.city ?? ""} /><span class="field-error" data-error="city"></span></div>
     <div class="field"><label for="latitude">Latitude *</label><input id="latitude" name="latitude" type="number" step="any" required value={place?.latitude} /><span class="field-error" data-error="latitude"></span></div>
@@ -44,7 +44,7 @@ const method = place ? "PATCH" : "POST";
     if (status) status.textContent = "Saving…";
     const data = new FormData(form);
     const payload = {
-      slug: data.get("slug"), name: data.get("name"), nameZh: data.get("nameZh"),
+      name: data.get("name"), nameZh: data.get("nameZh"),
       country: data.get("country"), region: data.get("region"), city: data.get("city"),
       latitude: Number(data.get("latitude")), longitude: Number(data.get("longitude")),
       cover: data.get("cover"), description: data.get("description"),

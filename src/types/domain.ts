@@ -31,7 +31,6 @@ export interface Place {
 }
 
 export interface PlaceInput {
-  slug: string;
   name: string;
   nameZh?: string | null;
   country: string;

@@ -16,7 +16,6 @@ describe("calendar date validation", () => {
 
 describe("place validation", () => {
   const validPlace = {
-    slug: "sayram-lake",
     name: "Sayram Lake",
     country: "China",
     latitude: 44.609,
@@ -50,12 +49,6 @@ describe("place validation", () => {
     if (!result.ok) expect(result.errors[field]).toBeDefined();
   });
 
-  it.each(["Sayram-Lake", "sayram_lake", "-sayram", "sayram--lake", ""])(
-    "rejects slug %s",
-    (slug) => {
-      expect(validatePlaceInput({ ...validPlace, slug }).ok).toBe(false);
-    },
-  );
 });
 
 describe("journey validation", () => {
