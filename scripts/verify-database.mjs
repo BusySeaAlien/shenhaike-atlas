@@ -20,7 +20,7 @@ function execute(sql) {
   const output = run([
     "d1",
     "execute",
-    "shenhaike",
+    "DB",
     "--local",
     "--persist-to",
     stateDirectory,
@@ -50,7 +50,7 @@ try {
     "d1",
     "migrations",
     "apply",
-    "shenhaike",
+    "DB",
     "--local",
     "--persist-to",
     stateDirectory,
@@ -58,7 +58,7 @@ try {
   run([
     "d1",
     "execute",
-    "shenhaike",
+    "DB",
     "--local",
     "--persist-to",
     stateDirectory,
