@@ -147,7 +147,7 @@ export interface VisitedPlaceSummary extends Place {
 export interface JourneySummary extends Journey {
   placeCount: number;
   visitCount: number;
-  dayCount: number;
+  dayCount: number | null;
 }
 
 export interface PlaceVisit extends Visit {

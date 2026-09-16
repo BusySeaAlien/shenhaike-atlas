@@ -63,6 +63,10 @@ describe("journey validation", () => {
     ).toBe(true);
   });
 
+  it("accepts journey bounds with year or month precision", () => {
+    expect(validateJourneyInput({ slug: "old-trip", name: "Old trip", startDate: "1998", endDate: "1998-07" }).ok).toBe(true);
+  });
+
   it("rejects an end date before the start date", () => {
     const result = validateJourneyInput({
       slug: "reverse",
@@ -80,6 +84,12 @@ describe("visit validation", () => {
     const input = { placeId: 1, journeyId: 1, visitedAt: "2026-08-14", sequence: 1 };
     expect(validateVisitInput(input).ok).toBe(true);
     expect(validateVisitInput({ ...input, sequence: 2 }).ok).toBe(true);
+  });
+
+  it("accepts year and month precision for visits", () => {
+    const input = { placeId: 1, journeyId: 1, sequence: 1 };
+    expect(validateVisitInput({ ...input, visitedAt: "1998" }).ok).toBe(true);
+    expect(validateVisitInput({ ...input, visitedAt: "1998-07" }).ok).toBe(true);
   });
 
   it("rejects invalid foreign-key inputs, dates, and sequence", () => {

@@ -14,7 +14,7 @@ const { journey, places, visits } = Astro.props;
         <option value="">Choose place</option>
         {places.map((place) => <option value={place.id}>{place.nameZh || place.name}</option>)}
       </select>
-      <input name="visitedAt" type="date" min={journey.startDate} max={journey.endDate} required aria-label="Visited date" />
+      <input name="visitedAt" inputmode="numeric" placeholder="YYYY / YYYY-MM / YYYY-MM-DD" required aria-label="Visited date" />
       <input name="notes" placeholder="Notes" aria-label="Notes" />
       <button type="submit">Add</button>
       <span class="visit-message" role="status"></span>
@@ -30,7 +30,7 @@ const { journey, places, visits } = Astro.props;
             <select name="placeId" required aria-label="Place">
               {places.map((place) => <option value={place.id} selected={place.id === visit.placeId}>{place.nameZh || place.name}</option>)}
             </select>
-            <input name="visitedAt" type="date" min={journey.startDate} max={journey.endDate} required value={visit.visitedAt} aria-label="Visited date" />
+            <input name="visitedAt" inputmode="numeric" placeholder="YYYY / YYYY-MM / YYYY-MM-DD" required value={visit.visitedAt} aria-label="Visited date" />
             <input name="notes" value={visit.notes ?? ""} placeholder="Notes" aria-label="Notes" />
             <button type="submit" class="secondary">Save</button>
             <span class="visit-message" role="status"></span>

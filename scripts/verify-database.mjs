@@ -112,6 +112,11 @@ try {
      )`,
   );
   expectFailure(
+    "invalid partial date",
+    `INSERT INTO atlas_journeys (slug, name, start_date, end_date)
+     VALUES ('invalid-partial-date', 'Invalid Partial Date', '1998-13', '1998-13')`,
+  );
+  expectFailure(
     "referenced place deletion",
     `DELETE FROM atlas_places WHERE slug = 'sayram-lake'`,
   );
@@ -119,6 +124,18 @@ try {
     "journey range excluding visits",
     `UPDATE atlas_journeys SET start_date = '2026-08-18' WHERE slug = 'xinjiang-2026'`,
   );
+
+  execute(`
+    INSERT INTO atlas_journeys (slug, name, start_date, end_date)
+    VALUES ('partial-date-check', 'Partial Date Check', '1998', '1998-07');
+    INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence)
+    VALUES (
+      (SELECT id FROM atlas_places WHERE slug = 'sayram-lake'),
+      (SELECT id FROM atlas_journeys WHERE slug = 'partial-date-check'),
+      '1998-07',
+      1
+    );
+  `);
 
   execute(`
     INSERT INTO atlas_journeys (slug, name, start_date, end_date)

@@ -1,4 +1,5 @@
 import type { Journey, JourneyInput } from "../../types/domain";
+import { dateRangesOverlap } from "../dates";
 import { validateJourneyInput } from "../validation/domain";
 import { DataError, isUniqueConstraintError } from "./errors";
 import type { JourneyRow } from "./rows";
@@ -72,14 +73,11 @@ export async function updateJourney(
   input: JourneyInput,
 ): Promise<Journey> {
   const value = validated(input);
-  const outside = await db
-    .prepare(`
-      SELECT COUNT(*) AS count FROM atlas_visits
-      WHERE journey_id = ?1 AND visited_at NOT BETWEEN ?2 AND ?3
-    `)
-    .bind(id, value.startDate, value.endDate)
-    .first<{ count: number }>();
-  if ((outside?.count ?? 0) > 0) {
+  const existingVisits = await db
+    .prepare("SELECT visited_at FROM atlas_visits WHERE journey_id = ?1")
+    .bind(id)
+    .all<{ visited_at: string }>();
+  if (existingVisits.results.some(({ visited_at }) => !dateRangesOverlap(visited_at, value.startDate, value.endDate))) {
     throw new DataError("conflict", "新的旅程日期范围不包含已有访问记录", {
       startDate: "请包含所有已有访问日期",
       endDate: "请包含所有已有访问日期",

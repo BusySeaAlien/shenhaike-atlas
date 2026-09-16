@@ -1,4 +1,5 @@
 import type { Visit, VisitInput } from "../../types/domain";
+import { dateRangesOverlap } from "../dates";
 import { validateVisitInput } from "../validation/domain";
 import { DataError, isUniqueConstraintError } from "./errors";
 import type { VisitRow } from "./rows";
@@ -26,7 +27,7 @@ async function assertRelationsAndDate(db: D1Database, value: VisitInput): Promis
     .bind(value.journeyId)
     .first<{ start_date: string; end_date: string }>();
   if (!journey) throw new DataError("validation", "旅程不存在", { journeyId: "请选择有效旅程" });
-  if (value.visitedAt < journey.start_date || value.visitedAt > journey.end_date) {
+  if (!dateRangesOverlap(value.visitedAt, journey.start_date, journey.end_date)) {
     throw new DataError("validation", "访问日期不在旅程范围内", {
       visitedAt: `日期须在 ${journey.start_date} 至 ${journey.end_date} 之间`,
     });

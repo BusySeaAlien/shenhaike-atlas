@@ -17,8 +17,7 @@ try {
 }
 const journey = detail?.journey;
 const placeCount = detail ? new Set(detail.visits.map((visit) => visit.placeId)).size : 0;
-const dayCount = journey ? inclusiveDayCount(journey.startDate, journey.endDate) : 0;
-const dayLabel = dayCount === 1 ? "day" : "days";
+const dayCount = journey ? inclusiveDayCount(journey.startDate, journey.endDate) : null;
 const placeLabel = placeCount === 1 ? "place" : "places";
 const visitLabel = detail?.visits.length === 1 ? "visit" : "visits";
 const title = journey ? `${journey.nameZh || journey.name} — Atlas` : failed ? "Archive unavailable — Atlas" : "Journey not found — Atlas";
@@ -31,7 +30,7 @@ const title = journey ? `${journey.nameZh || journey.name} — Atlas` : failed ?
       <h1>{journey.nameZh || journey.name}</h1>
       {journey.nameZh && <p class="detail-english">{journey.name}</p>}
       <p class="journey-dates"><time datetime={journey.startDate}>{journey.startDate}</time><span>—</span><time datetime={journey.endDate}>{journey.endDate}</time></p>
-      <p class="detail-coordinate">{dayCount} {dayLabel} · {placeCount} {placeLabel} · {detail.visits.length} {visitLabel}</p>
+      <p class="detail-coordinate">{[dayCount === null ? null : `${dayCount} ${dayCount === 1 ? "day" : "days"}`, `${placeCount} ${placeLabel}`, `${detail.visits.length} ${visitLabel}`].filter(Boolean).join(" · ")}</p>
     </header>
     {journey.description && <div class="detail-description"><p>{journey.description}</p></div>}
     <section class="route-section" aria-labelledby="route-heading">

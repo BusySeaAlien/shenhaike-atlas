@@ -1,5 +1,6 @@
 import type { JourneyInput, PlaceInput, VisitInput } from "../../types/domain";
 import { isCountryName } from "../countries";
+import { dateBounds, isPartialDate } from "../dates";
 import type { ValidationResult } from "./result";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -95,9 +96,9 @@ export function validateJourneyInput(input: JourneyInput): ValidationResult<Jour
   if (slug && !SLUG_PATTERN.test(slug)) {
     errors.slug = "仅可使用小写字母、数字和单个连字符";
   }
-  if (!isCalendarDate(input.startDate)) errors.startDate = "必须是真实的 YYYY-MM-DD 日期";
-  if (!isCalendarDate(input.endDate)) errors.endDate = "必须是真实的 YYYY-MM-DD 日期";
-  if (!errors.startDate && !errors.endDate && input.startDate > input.endDate) {
+  if (!isPartialDate(input.startDate)) errors.startDate = "请填写 YYYY、YYYY-MM 或 YYYY-MM-DD";
+  if (!isPartialDate(input.endDate)) errors.endDate = "请填写 YYYY、YYYY-MM 或 YYYY-MM-DD";
+  if (!errors.startDate && !errors.endDate && dateBounds(input.startDate).start > dateBounds(input.endDate).end) {
     errors.endDate = "结束日期不能早于开始日期";
   }
   checkOptionalLength(nameZh, "nameZh", 160, errors);
@@ -117,7 +118,7 @@ export function validateVisitInput(input: VisitInput): ValidationResult<VisitInp
 
   if (!Number.isInteger(input.placeId) || input.placeId < 1) errors.placeId = "地点不存在";
   if (!Number.isInteger(input.journeyId) || input.journeyId < 1) errors.journeyId = "旅程不存在";
-  if (!isCalendarDate(input.visitedAt)) errors.visitedAt = "必须是真实的 YYYY-MM-DD 日期";
+  if (!isPartialDate(input.visitedAt)) errors.visitedAt = "请填写 YYYY、YYYY-MM 或 YYYY-MM-DD";
   if (!Number.isInteger(input.sequence) || input.sequence < 1) errors.sequence = "顺序必须是正整数";
   checkOptionalLength(notes, "notes", 3000, errors);
 

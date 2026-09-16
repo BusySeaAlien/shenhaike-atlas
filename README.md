@@ -107,7 +107,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 公开查询规则如下：
 
 - 首页 Places 只统计至少到访一次的不同地点，Journeys 只统计至少包含一次访问的旅程，Regions 按非空国家与地区组合去重。
-- 最近地点按最后到访日期倒序排列并按地点去重；旅程分别展示不同地点数和 Visit 总数，天数包含首尾日期。
+- 最近地点按最后到访日期倒序排列并按地点去重；旅程分别展示不同地点数和 Visit 总数，仅在起止日期都精确到日时显示包含首尾日期的天数。
 - `/journeys/` 保留空旅程；无 Visit 的地点和旅程详情显示空状态，但不会进入首页地图或已到访统计。
 - 未知 slug 返回真实 404；D1 查询失败返回不泄露内部异常的 503 页面。公开页面均提供描述、规范 URL 和 Open Graph 元数据。
 
@@ -169,9 +169,9 @@ Atlas 从 Home 与 Lens 延续了宋体标题、克制留白、低饱和纸张�
 
 ## 数据模型与规则
 
-- `places` 保存 WGS84 经纬度；`journeys` 保存起止日历日期；`visits` 连接两者并保存访问日期和顺序。
+- `places` 保存 WGS84 经纬度；`journeys` 保存起止日期；`visits` 连接两者并保存访问日期和顺序。Journey 与 Visit 日期均可使用 `YYYY`、`YYYY-MM` 或 `YYYY-MM-DD`，页面保留实际精度，不以虚构日期补齐。
 - `places.sovereign_country_code` 与 `places.admin1_code` 是机器可读的行政归属，由服务端按坐标解析后写入，创建与修改时都会重算，从不接受客户端提交的值。`country` / `region` 保留为人工可读标签，不参与地图与统计判断。
-- Place 与 Journey 的 slug 分别唯一。Visit 必须引用有效记录，且访问日期必须位于旅程日期范围内。
+- Place 与 Journey 的 slug 分别唯一。Visit 必须引用有效记录；部分日期按可能的起止边界解释，并且必须与 Journey 日期范围相交。
 - 同一 Place 可以在同一或不同 Journey 中重复访问；不设置 Place/Journey 组合唯一约束。
 - Journey 内的 `sequence` 唯一。排序通过 D1 `batch()` 整体提交，任何语句失败时整批回滚。
 - 删除被 Visit 引用的 Place 会被拒绝；删除 Journey 会级联删除其 Visits，但保留 Places。

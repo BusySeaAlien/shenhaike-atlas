@@ -12,8 +12,8 @@ const method = journey ? "PATCH" : "POST";
     <div class="field"><label for="slug">Slug *</label><input id="slug" name="slug" required value={journey?.slug} /><span class="field-error" data-error="slug"></span></div>
     <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={journey?.name} /><span class="field-error" data-error="name"></span></div>
     <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={journey?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
-    <div class="field"><label for="startDate">Start date *</label><input id="startDate" name="startDate" type="date" required value={journey?.startDate} /><span class="field-error" data-error="startDate"></span></div>
-    <div class="field"><label for="endDate">End date *</label><input id="endDate" name="endDate" type="date" required value={journey?.endDate} /><span class="field-error" data-error="endDate"></span></div>
+    <div class="field"><label for="startDate">Start date *</label><input id="startDate" name="startDate" inputmode="numeric" placeholder="YYYY / YYYY-MM / YYYY-MM-DD" required value={journey?.startDate} /><span class="field-error" data-error="startDate"></span></div>
+    <div class="field"><label for="endDate">End date *</label><input id="endDate" name="endDate" inputmode="numeric" placeholder="YYYY / YYYY-MM / YYYY-MM-DD" required value={journey?.endDate} /><span class="field-error" data-error="endDate"></span></div>
     <div class="field wide"><label for="cover">Cover URL</label><input id="cover" name="cover" value={journey?.cover ?? ""} /><span class="field-error" data-error="cover"></span></div>
     <div class="field wide"><label for="description">Description</label><textarea id="description" name="description">{journey?.description ?? ""}</textarea><span class="field-error" data-error="description"></span></div>
   </div>

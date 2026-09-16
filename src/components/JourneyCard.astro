@@ -3,7 +3,7 @@ import type { JourneySummary } from "../types/domain";
 
 interface Props { journey: JourneySummary; index?: number }
 const { journey, index = 0 } = Astro.props;
-const dayLabel = journey.dayCount === 1 ? "day" : "days";
+const duration = journey.dayCount === null ? null : `${journey.dayCount} ${journey.dayCount === 1 ? "day" : "days"}`;
 const placeLabel = journey.placeCount === 1 ? "place" : "places";
 const visitLabel = journey.visitCount === 1 ? "visit" : "visits";
 ---
@@ -13,5 +13,5 @@ const visitLabel = journey.visitCount === 1 ? "visit" : "visits";
   <h3><a href={`/journeys/${journey.slug}/`}>{journey.nameZh || journey.name}</a></h3>
   {journey.nameZh && <p class="english-name">{journey.name}</p>}
   <p class="journey-dates"><time datetime={journey.startDate}>{journey.startDate}</time><span>—</span><time datetime={journey.endDate}>{journey.endDate}</time></p>
-  <p class="journey-counts">{journey.dayCount} {dayLabel} · {journey.placeCount} {placeLabel} · {journey.visitCount} {visitLabel}</p>
+  <p class="journey-counts">{[duration, `${journey.placeCount} ${placeLabel}`, `${journey.visitCount} ${visitLabel}`].filter(Boolean).join(" · ")}</p>
 </article>
