@@ -299,11 +299,15 @@ These are understood and deliberately not fixed here. Read before running
    (13.3 MB source, vertex budget unmeasured), which would also likely repair
    Monaco and the Vatican — see limitations 1 and 6.
 
-6. **Monaco and the Vatican cannot be saved with their own country.** Their 50m
-   polygons sit ~1.7 km and ~1.9 km off the real territories, so the resolver
-   returns `FRA` and `ITA`. The form offers `MCO` and `VAT`; selecting either at
-   those coordinates fails the "国家与坐标不一致" check. The existing `monaco`
-   row keeps its correct `MCO` because it was written before this check existed.
+6. **Monaco cannot be saved with its own country; the Vatican needs an offset.**
+   The 50m `MCO` polygon sits ~1.7 km off the real territory and contains none
+   of it, so the resolver returns `FRA`. The form offers `MCO`; selecting it at
+   the true coordinates fails the "国家与坐标不一致" check. The existing
+   `monaco` row keeps its correct `MCO` because it was written before this check
+   existed. The 50m `VAT` polygon is likewise misplaced (~1.9 km west), so the
+   `vatican` row stores the nearest robust VAT point `41.9025, 12.4365`
+   (~1.4 km west of St. Peter's) — same offset policy as Geneva in limitation 7.
+   A "correction" back to the true Vatican coordinate would resolve to `ITA`.
 
 7. **Geneva's stored coordinate is a deliberate offset.** The 110m Swiss
    polygon cuts the Geneva lobe off entirely: the city centre `46.2044, 6.1432`
