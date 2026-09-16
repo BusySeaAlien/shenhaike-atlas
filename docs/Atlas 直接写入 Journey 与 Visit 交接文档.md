@@ -100,7 +100,7 @@ pnpm exec wrangler d1 migrations list DB --remote
 
 ### 4.2 查找重复 Place 与 Journey
 
-以下示例准备创建“2012 韩国之旅”和“首尔”：
+以下示例准备创建“2014 韩国之旅”和“首尔”：
 
 ```sh
 pnpm exec wrangler d1 execute DB --remote --command "
@@ -111,7 +111,7 @@ WHERE slug = 'seoul' OR lower(name) LIKE '%seoul%' OR name_zh LIKE '%首尔%';
 
 SELECT id, slug, name, name_zh, start_date, end_date
 FROM atlas_journeys
-WHERE slug = 'south-korea-2012'
+WHERE slug = 'south-korea-2014'
    OR lower(name) LIKE '%korea%'
    OR name_zh LIKE '%韩国%';
 "
@@ -126,7 +126,7 @@ pnpm exec wrangler d1 execute DB --remote --command "
 SELECT j.id, j.slug, COALESCE(MAX(v.sequence), 0) AS max_sequence
 FROM atlas_journeys j
 LEFT JOIN atlas_visits v ON v.journey_id = j.id
-WHERE j.slug = 'south-korea-2012'
+WHERE j.slug = 'south-korea-2014'
 GROUP BY j.id, j.slug;
 "
 ```
@@ -144,11 +144,11 @@ pnpm exec wrangler d1 execute DB --remote --command "
 INSERT INTO atlas_journeys (
   slug, name, name_zh, start_date, end_date, description
 ) VALUES (
-  'south-korea-2012',
-  'South Korea Journey 2012',
+  'south-korea-2014',
+  'South Korea Journey 2014',
   '韩国之旅',
-  '2012',
-  '2012',
+  '2014-01-22',
+  '2014-01-26',
   NULL
 );
 
@@ -156,8 +156,8 @@ INSERT INTO atlas_visits (
   place_id, journey_id, visited_at, sequence, notes
 ) VALUES (
   (SELECT id FROM atlas_places WHERE slug = 'seoul'),
-  (SELECT id FROM atlas_journeys WHERE slug = 'south-korea-2012'),
-  '2012',
+  (SELECT id FROM atlas_journeys WHERE slug = 'south-korea-2014'),
+  '2014-01-22',
   1,
   NULL
 );
@@ -228,19 +228,19 @@ pnpm exec wrangler d1 execute DB --remote --command "
 INSERT INTO atlas_journeys (
   slug, name, name_zh, start_date, end_date
 ) VALUES (
-  'south-korea-2012',
-  'South Korea Journey 2012',
+  'south-korea-2014',
+  'South Korea Journey 2014',
   '韩国之旅',
-  '2012',
-  '2012'
+  '2014-01-22',
+  '2014-01-26'
 );
 
 INSERT INTO atlas_visits (
   place_id, journey_id, visited_at, sequence
 ) VALUES (
   (SELECT id FROM atlas_places WHERE slug = 'seoul'),
-  (SELECT id FROM atlas_journeys WHERE slug = 'south-korea-2012'),
-  '2012',
+  (SELECT id FROM atlas_journeys WHERE slug = 'south-korea-2014'),
+  '2014-01-22',
   1
 );
 "
@@ -256,8 +256,8 @@ INSERT INTO atlas_visits (
   place_id, journey_id, visited_at, sequence, notes
 ) VALUES (
   (SELECT id FROM atlas_places WHERE slug = 'busan'),
-  (SELECT id FROM atlas_journeys WHERE slug = 'south-korea-2012'),
-  '2012',
+  (SELECT id FROM atlas_journeys WHERE slug = 'south-korea-2014'),
+  '2014-01-24',
   2,
   NULL
 );
@@ -290,7 +290,7 @@ SELECT
 FROM atlas_journeys j
 JOIN atlas_visits v ON v.journey_id = j.id
 JOIN atlas_places p ON p.id = v.place_id
-WHERE j.slug = 'south-korea-2012'
+WHERE j.slug = 'south-korea-2014'
 ORDER BY v.sequence;
 "
 ```
@@ -320,8 +320,8 @@ WHERE j.id IS NULL OR p.id IS NULL;
 ### 6.3 公网页面检查
 
 ```sh
-curl -fsS -D - https://atlas.shenhaike.com/journeys/south-korea-2012/ -o /tmp/atlas-journey.html
-rg -n "韩国之旅|South Korea Journey 2012|首尔|2012" /tmp/atlas-journey.html
+curl -fsS -D - https://atlas.shenhaike.com/journeys/south-korea-2014/ -o /tmp/atlas-journey.html
+rg -n "韩国之旅|South Korea Journey 2014|首尔|2014" /tmp/atlas-journey.html
 ```
 
 同时检查：首页 Journey 筛选、Footprint 年份筛选、Journey 详情页和 Timeline。
@@ -333,19 +333,19 @@ rg -n "韩国之旅|South Korea Journey 2012|首尔|2012" /tmp/atlas-journey.htm
 ```sh
 pnpm exec wrangler d1 execute DB --remote --command "
 SELECT id, slug FROM atlas_places WHERE slug = 'seoul';
-SELECT id, slug FROM atlas_journeys WHERE slug = 'south-korea-2012';
+SELECT id, slug FROM atlas_journeys WHERE slug = 'south-korea-2014';
 SELECT v.id, v.sequence, p.slug AS place_slug
 FROM atlas_visits v
 JOIN atlas_places p ON p.id = v.place_id
 JOIN atlas_journeys j ON j.id = v.journey_id
-WHERE j.slug = 'south-korea-2012';
+WHERE j.slug = 'south-korea-2014';
 "
 ```
 
 如果 Journey 是本次误建且确认没有任何需要保留的数据，删除 Journey 会由外键级联删除其 Visits，但不会删除 Places：
 
 ```sql
-DELETE FROM atlas_journeys WHERE slug = 'south-korea-2012';
+DELETE FROM atlas_journeys WHERE slug = 'south-korea-2014';
 ```
 
 这是破坏性操作。Agent 必须明确确认目标 slug 和关联 Visit，且只有用户明确要求撤销/删除时才执行。
