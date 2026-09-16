@@ -10,11 +10,11 @@ Atlas CRS: EPSG:4326 (WGS84), `[longitude, latitude]`.
 
 | File | Features | Vertices | Size | Purpose |
 | --- | --- | --- | --- | --- |
-| `world-admin0-v1.json` | 176 | 11,047 | 258.4 KB | World Footprint fill |
+| `world-admin0-v2.json` | 235 | 12,592 | 301.2 KB | World Footprint fill |
 | `china-admin0-polygon-v1.json` | 1 | 642 | 13.1 KB | China fill + World CHN override |
 | `china-admin1-v1.json` | 34 | 22,325 | 456.3 KB | China Footprint fill |
 | `china-admin1-internal-border-v1.json` | 76 segments | 7,882 | 158.9 KB | Province outlines |
-| **total** | | | **887 KB** | all lazily loaded |
+| **total** | | | **930 KB** | all lazily loaded |
 
 ## Sources
 
@@ -35,8 +35,27 @@ Atlas CRS: EPSG:4326 (WGS84), `[longitude, latitude]`.
 > If this dataset is refreshed, re-run §41 checks — especially the `ISO_A3`
 > sentinel behaviour described below — before committing.
 
-110m was chosen for the global overview zooms (handoff §37/§38). 50m only if
-small-country legibility proves unacceptable in practice.
+110m was chosen for the global overview zooms (handoff §37/§38), and stays the
+base layer for every country it covers. It does **not** cover small states at
+all, so 50m is used as a supplement — see below.
+
+### World supplement — Natural Earth 50m
+
+| | |
+| --- | --- |
+| Product | Admin 0 – Countries |
+| Scale | 50m |
+| URL | `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson` |
+| Downloaded | 2026-09-16 |
+| License | Public domain (Natural Earth imposes no restrictions) |
+| Original CRS | EPSG:4326 |
+| Local copy | `data-source/ne_50m_admin_0_countries.geojson` (git-ignored, 3.0 MB) |
+
+Used additively, never as a replacement. Switching the base layer to 50m would
+take the existing countries from 11,047 to ~97,839 vertices (>2 MB), which
+trips the generator's own 1 MB guard and changes the coastline weight at global
+zoom. The supplement contributes only the states 110m lacks: 59 features,
+1,545 vertices.
 
 ### China — 自然资源部 authorised county dataset
 
@@ -117,8 +136,14 @@ does not disappear along with Natural Earth's `TWN` feature.
 
 **Hong Kong and Macau are not separate Natural Earth features at 110m** (verified
 by searching `NAME`, `ADMIN`, `SOVEREIGNT` and `ADM0_A3` — zero hits). They are
-already inside the China feature, so only Taiwan needs handling. Re-check this if
-the data moves to 50m.
+already inside the China feature, so only Taiwan needs handling.
+
+**Re-checked for the 50m supplement (2026-09-16): both are present at 50m**
+(`ADM0_A3` = `HKG`, `MAC`; at 110m neither exists). They are therefore excluded
+from the supplement by `SUPPLEMENT_EXCLUDED`, alongside `CHN` and `TWN`. Without
+that exclusion Hong Kong and Macau would render twice — once from the supplement
+and once from the CHN override, which is built from the county source and
+already contains them.
 
 The generators fail loudly if Natural Earth stops containing `CHN` or `TWN`,
 rather than silently leaving two competing China polygons in the layer.
@@ -127,7 +152,7 @@ rather than silently leaving two competing China polygons in the layer.
 
 | File | Setting | Result |
 | --- | --- | --- |
-| `world-admin0` | Natural Earth as shipped | 11,047 vertices |
+| `world-admin0` | 110m as shipped + 50m supplement, neither simplified | 12,592 vertices |
 | `china-admin0-polygon` | `-simplify 0.5% keep-shapes` | 642 vertices |
 | `china-admin1` | `-simplify 25%`, except small provinces at full detail | 22,325 vertices |
 | `china-admin1-internal-border` | `-innerlines` on the full-detail dissolve, then `-simplify 25%` | 7,882 vertices |
@@ -195,10 +220,87 @@ Both scripts assert before writing, and exit non-zero on failure:
 - all 34 province codes present in `china-admin1` (GB/T 2260)
 - `china-admin0-polygon` covers Taiwan and Hainan
 - `china-admin1` covers Taiwan, Hainan, Hong Kong and Macau
-- `world-admin0` contains no `TWN` feature and its `CHN` override has geometry
+- `world-admin0` contains no `TWN`, `HKG` or `MAC` feature, and its `CHN`
+  override has geometry
+- every id the 50m supplement contributes is a valid ISO alpha-3, so the place
+  form can always submit the code the resolver returns
+- the supplement contributes at least one feature, so a Natural Earth refresh
+  that renames a code cannot silently shrink it
 - total size under 1 MB
 
 ## Versioning
 
 Ship changes as new files (`-v2.json`), not in-place overwrites. Record what
 changed and why here.
+
+### world-admin0 v1 → v2 (2026-09-16)
+
+**Why.** 110m omits small states entirely, so `resolveAdministrativeLocation()`
+returned a *neighbouring* country for land inside one. Singapore was the case
+that surfaced it: its coordinates resolved to `MYS`, because Malaysia's 110m
+outline spans the island. 80 ISO 3166-1 alpha-3 codes had no polygon at all,
+including Malta, the Maldives, Mauritius, Bahrain, Monaco and the Vatican —
+all plausible destinations for a travel atlas.
+
+**What changed.** 59 features / 1,545 vertices appended from the 50m supplement.
+v1 is deleted; `location.ts` and `world.ts` now import v2.
+
+**Specificity ordering.** Adding Singapore was not sufficient on its own.
+`index()` now sorts units by bounding-box area so the smallest polygon is
+tested first — otherwise Malaysia's larger, coarser outline still won, because
+`match()` returns the first hit. The sort is what makes an over-covering
+neighbour yield to the more specific state.
+
+Regenerate with `pnpm data:world-administrative`.
+
+## Known limitations
+
+These are understood and deliberately not fixed here. Read before running
+`backfill-administrative-codes.ts`.
+
+1. **Monaco's polygon is degenerate.** The 50m `MCO` feature has 7 vertices and
+   a 4.5 × 4.3 km bounding box, and it contains *no* real Monaco coordinate —
+   tested against the palace, Monte Carlo, and the `43.7384, 7.4246` already
+   stored for `monaco`. Adding it does not make Monaco resolvable. The `MCO`
+   stored on that place is correct; leave it.
+
+2. **`menton` disagrees with the resolver, and the resolver is wrong.** The
+   place stores `FRA`, which is correct, but the 110m France/Italy border is too
+   coarse and `43.7745, 7.4975` resolves to `ITA`. **Never run a blanket
+   `backfill --apply` over every place**: it would rewrite this correct value to
+   a wrong one, and would also rewrite `monaco` from `MCO` to `FRA`. Backfill
+   one slug at a time, with the dry run read first.
+
+3. **Four entities are excluded on purpose.** `ALD` (Åland), `IOA` (Indian Ocean
+   Territory), `ATC` (Ashmore and Cartier) and `KAS` (Siachen Glacier) are in
+   50m but their `ADM0_A3` is not a valid ISO code, so they would not match the
+   value `PlaceForm` submits and would fail the "国家与坐标不一致" check. They
+   stay unresolvable, as they were before.
+
+4. **Reclaimed land is still not covered.** The boundary source predates recent
+   reclamation, so places on it — AsiaWorld-Expo on Chek Lap Kok, the HZMB Hong
+   Kong port — fall outside every polygon. Unrelated to this version; needs a
+   newer coastline source or a nearest-neighbour fallback in the resolver.
+
+5. **Singapore is only partly covered, and its coasts still read as Malaysia.**
+   The 50m `SGP` polygon has 9 vertices and covers roughly 485 km² of Singapore's
+   735 km². Measured against the current layer:
+
+   ```text
+   city centre 103.8198,1.3521  → SGP     Tuas        103.637,1.325   → MYS   ✗
+   Changi      103.9915,1.3644  → SGP     Sembawang   103.82,1.449    → MYS   ✗
+   Marina Bay  103.8607,1.2834  → SGP     Harbourfront 103.82,1.265   → MYS   ✗
+   Jurong      103.70,1.35      → SGP     Sentosa     103.823,1.249   → null
+   Orchard     103.832,1.304    → SGP
+   ```
+
+   The west and north coasts fall outside the polygon, so an enclosing neighbour
+   still claims them. Fixing this properly means 10m geometry for the supplement
+   (13.3 MB source, vertex budget unmeasured), which would also likely repair
+   Monaco and the Vatican — see limitations 1 and 6.
+
+6. **Monaco and the Vatican cannot be saved with their own country.** Their 50m
+   polygons sit ~1.7 km and ~1.9 km off the real territories, so the resolver
+   returns `FRA` and `ITA`. The form offers `MCO` and `VAT`; selecting either at
+   those coordinates fails the "国家与坐标不一致" check. The existing `monaco`
+   row keeps its correct `MCO` because it was written before this check existed.

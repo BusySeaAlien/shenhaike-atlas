@@ -998,7 +998,7 @@ administrative/
 ├── location.ts
 ├── style.ts
 └── data/
-    ├── world-admin0-v1.json
+    ├── world-admin0-v2.json
     ├── china-admin0-polygon-v1.json
     ├── china-admin1-v1.json
     ├── china-admin1-internal-border-v1.json
@@ -1355,7 +1355,7 @@ Natural Earth 110m
         ↓
 断言 Feature.id 唯一
         ↓
-world-admin0-v1.json
+world-admin0-v2.json
 ```
 
 ## 40.1 China override 必须简化到 110m 密度
@@ -2360,7 +2360,7 @@ China 模式必须同时覆盖：
 最终：
 
 ```text
-world-admin0-v1.json
+world-admin0-v2.json
 ```
 
 由：
@@ -2478,7 +2478,7 @@ normalize country codes
 
 删除无关属性
 
-输出 world-admin0-v1
+输出 world-admin0-v2
 ```
 
 ---
@@ -2819,7 +2819,7 @@ Feature ID normalization
 生成：
 
 ```text
-world-admin0-v1.json
+world-admin0-v2.json
 ```
 
 ---

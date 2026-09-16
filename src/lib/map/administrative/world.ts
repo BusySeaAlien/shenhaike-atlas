@@ -47,8 +47,8 @@ export function ensureWorldAdministrativeLoaded(map: MapLibreMap): Promise<void>
 }
 
 async function loadWorldAdministrative(map: MapLibreMap): Promise<void> {
-  const module = await import("./data/world-admin0-v1.json");
-  const features = administrativeFeatures(module.default, "world-admin0-v1.json");
+  const module = await import("./data/world-admin0-v2.json");
+  const features = administrativeFeatures(module.default, "world-admin0-v2.json");
   countryCodes = featureIds(features, "countryCode");
 
   map.addSource(WORLD_ADMIN_SOURCE, sourceSpec(module.default, "countryCode"));

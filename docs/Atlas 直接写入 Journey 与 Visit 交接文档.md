@@ -204,7 +204,12 @@ node scripts/backfill-administrative-codes.ts --remote --slug=seoul
 node scripts/backfill-administrative-codes.ts --remote --apply --slug=seoul
 ```
 
-如果输出 `did not resolve to any polygon`，停止流程并检查坐标，不要手写代码绕过。
+有两种解析失败，都必须停下，不要手写代码绕过：
+
+- 输出 `did not resolve to any polygon`：坐标落在所有多边形之外（海面、境外或数据空洞）。检查坐标本身。
+- 解析出的省份与你已知的行政归属不符：**数据源本身可能是错的**。坐标解析只看位置、不看来源权威性，官网、百科、地图服务都可能给出注册地址、同名地点或标注错误的坐标。此时换来源交叉验证，不要因为来源看起来权威就直接采用。
+
+例：雪乡（黑龙江省海林市）的官网地址解析出 `220000`（吉林省），据此可判定那是运营公司的注册地址而非景区位置。
 
 #### B3. 确认代码后创建 Journey 与 Visit
 

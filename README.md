@@ -140,7 +140,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 - 中国相关政治边界与行政几何由 Atlas 自己维护，不依赖底图数据：`lib/map/boundaries/`（国境线、岛屿、南海断续线）与 `lib/map/administrative/`（国家与省级面）。
 - 数据在开发阶段一次性生成后提交进仓库，运行时只读取本项目静态资源，不请求任何第三方地图服务；`pnpm build` 完全离线。
 - 来源、CRS 判断依据、转换方法与已知待核验项记录在各自目录的 `README.md`。**尚未完成与自然资源部标准地图的人工比对，也未完成公开地图审核流程。**
-- World 足迹使用 Natural Earth Admin 0（110m），其中中国部分由中国权威面覆盖，港澳台在世界层级统一归入 `CHN`。
+- World 足迹使用 Natural Earth Admin 0（110m）为基底，并以 50m 增量补充 110m 未收录的小国（新加坡、马耳他、马尔代夫等 59 个）；中国部分由中国权威面覆盖，港澳台在世界层级统一归入 `CHN`。
 - Place 的行政归属由 `lib/map/administrative/location.ts` 按经纬度做 Point-in-Polygon 解析后写入 D1，不依赖 `country` / `region` 文本匹配。
 
 ## 目录

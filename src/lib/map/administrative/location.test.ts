@@ -44,6 +44,45 @@ describe("resolveAdministrativeLocation", () => {
     });
   });
 
+  it("resolves small states the 110m layer omits", () => {
+    // Natural Earth 110m has no Singapore polygon at all, so Malaysia's outline
+    // used to claim its coordinates. The state now arrives from the 50m
+    // supplement, and `index()` ranks the smaller box first so it wins.
+    expect(resolveAdministrativeLocation(103.8198, 1.3521)).toEqual({
+      sovereignCountryCode: "SGP",
+      admin1Code: null,
+    });
+    expect(resolveAdministrativeLocation(103.9915, 1.3644)).toEqual({
+      sovereignCountryCode: "SGP",
+      admin1Code: null,
+    });
+    expect(resolveAdministrativeLocation(14.5146, 35.8989)).toEqual({
+      sovereignCountryCode: "MLT",
+      admin1Code: null,
+    });
+    // These three sit geometrically inside a larger 110m neighbour, so they are
+    // the cases the bbox-area ordering in `index()` exists for — with file
+    // order they would resolve to ITA, AUT and FRA respectively.
+    expect(resolveAdministrativeLocation(12.4578, 43.9424)).toEqual({
+      sovereignCountryCode: "SMR", // San Marino, inside Italy
+      admin1Code: null,
+    });
+    expect(resolveAdministrativeLocation(9.5215, 47.141)).toEqual({
+      sovereignCountryCode: "LIE", // Vaduz, inside Austria's outline
+      admin1Code: null,
+    });
+    expect(resolveAdministrativeLocation(1.5218, 42.5075)).toEqual({
+      sovereignCountryCode: "AND", // Andorra la Vella
+      admin1Code: null,
+    });
+    // Johor Bahru sits just across the strait: ranking by specificity must not
+    // let Singapore's polygon capture the mainland beside it.
+    expect(resolveAdministrativeLocation(103.74, 1.49)).toEqual({
+      sovereignCountryCode: "MYS",
+      admin1Code: null,
+    });
+  });
+
   it("returns nulls rather than guessing at sea (§56)", () => {
     expect(resolveAdministrativeLocation(150, 30)).toEqual({
       sovereignCountryCode: null,

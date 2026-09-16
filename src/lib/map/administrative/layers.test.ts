@@ -3,6 +3,13 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import { ensureChinaAdministrativeLoaded, applyChinaVisitedState, bindChinaHover, hideChinaAdministrative } from "./china";
 import { ensureWorldAdministrativeLoaded, applyWorldVisitedState, bindWorldHover, hideWorldAdministrative } from "./world";
 import { ADMIN_INSERT_BEFORE_LAYER } from "./layers";
+import worldAdmin0 from "./data/world-admin0-v2.json";
+
+/**
+ * Derived, not hardcoded: the world layer gains small states whenever Natural
+ * Earth's supplement grows, and a count assertion should not be what notices.
+ */
+const WORLD_COUNTRY_COUNT = worldAdmin0.features.length;
 
 /**
  * Phase 6/8 gates: the Footprint must highlight exactly the right regions, and
@@ -82,8 +89,8 @@ describe("World Footprint layer", () => {
     const visited = states.filter(({ visited }) => visited === true).map(({ id }) => id).sort();
     expect(visited).toEqual(["CHN", "FRA"]);
     // Full sync, not just the additions (§79).
-    expect(states).toHaveLength(176);
-    expect(states.filter(({ visited }) => visited === false)).toHaveLength(174);
+    expect(states).toHaveLength(WORLD_COUNTRY_COUNT);
+    expect(states.filter(({ visited }) => visited === false)).toHaveLength(WORLD_COUNTRY_COUNT - 2);
   });
 
   it("writes false when a country is no longer visited (§79)", async () => {
@@ -102,11 +109,13 @@ describe("World Footprint layer", () => {
     const source = sources.get("world-admin-source") as { promoteId: string };
     expect(source.promoteId).toBe("countryCode");
 
-    const { default: world } = await import("./data/world-admin0-v1.json");
-    const codes = (world as { features: Array<{ id: string }> }).features.map(({ id }) => id);
+    const codes = worldAdmin0.features.map(({ id }) => id);
     expect(codes).toContain("CHN");
     expect(codes).not.toContain("TWN");
     expect(new Set(codes).size).toBe(codes.length);
+    // A count derived from the file cannot notice the file shrinking, so pin a
+    // floor: 110m's 176 plus the 50m supplement's 59.
+    expect(WORLD_COUNTRY_COUNT).toBeGreaterThanOrEqual(235);
   });
 
   it("toggles visibility without rebuilding the source (§67)", async () => {

@@ -2,7 +2,7 @@ import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 // The explicit type attribute keeps this file loadable by plain Node (used by
 // scripts/backfill-administrative-codes.ts) as well as by Vite.
 import chinaAdmin1 from "./data/china-admin1-v1.json" with { type: "json" };
-import worldAdmin0 from "./data/world-admin0-v1.json" with { type: "json" };
+import worldAdmin0 from "./data/world-admin0-v2.json" with { type: "json" };
 
 /**
  * Resolves a WGS84 coordinate to Atlas' standard administrative codes.
@@ -63,23 +63,39 @@ function boundsOfGeometry(geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon): Bou
   return [west, south, east, north];
 }
 
+/** Bounding-box area. Only ever used to rank specificity, never as a real area. */
+function boxArea([west, south, east, north]: Bounds): number {
+  return (east - west) * (north - south);
+}
+
 /**
  * Bounds are computed once per process. Without them every lookup would run a
- * ray cast against all 176 countries.
+ * ray cast against all 235 countries.
+ *
+ * Units are ranked smallest bounding box first, so the most specific polygon
+ * wins. A coarse polygon over-covers the small states beside it: Natural Earth
+ * 110m omits Singapore entirely, and Malaysia's outline still spans it. Those
+ * states now arrive from the 50m supplement, so first-match order would keep
+ * handing Singapore's coordinates to Malaysia.
  */
 function index(collection: unknown): AdministrativeUnit[] {
   const parsed = collection as AdministrativeCollection;
-  return parsed.features.map((feature) => ({
-    code: String(feature.id),
-    bounds: boundsOfGeometry(feature.geometry),
-    geometry: feature.geometry,
-  }));
+  return parsed.features
+    .map((feature) => ({
+      code: String(feature.id),
+      bounds: boundsOfGeometry(feature.geometry),
+      geometry: feature.geometry,
+    }))
+    .sort((left, right) => boxArea(left.bounds) - boxArea(right.bounds));
 }
 
 let worldUnits: AdministrativeUnit[] | null = null;
 let chinaUnits: AdministrativeUnit[] | null = null;
 
-/** First unit whose bounding box contains the point and whose ring encloses it. */
+/**
+ * Most specific unit whose bounding box contains the point and whose ring
+ * encloses it — `index()` ranks units so the smallest box is tested first.
+ */
 function match(units: AdministrativeUnit[], longitude: number, latitude: number): string | null {
   const point: [number, number] = [longitude, latitude];
   for (const unit of units) {

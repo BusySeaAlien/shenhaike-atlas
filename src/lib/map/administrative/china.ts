@@ -21,7 +21,7 @@ import { CHINA_INTERNAL_BORDER_WIDTH, footprintFillLayer, footprintLineLayer } f
  *
  * `china-admin0-polygon-v1.json` is deliberately not loaded here. Its job is
  * the World Footprint CHN override, where it already sits inside
- * `world-admin0-v1.json` (§77).
+ * `world-admin0-v2.json` (§77).
  *
  * Loaded lazily: only requested the first time the user opens China Footprint
  * (§66).
