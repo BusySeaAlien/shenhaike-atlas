@@ -418,17 +418,37 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         map.addLayer(nightHemisphereLayer);
         map.addSource("night-lights", { type: "geojson", data: nightLightsGeoJson([], new Date()) });
         map.addLayer({
-          id: "night-lights-glow",
+          id: "night-lights-halo",
           type: "circle",
           source: "night-lights",
           paint: {
             "circle-color": "#ffd8a3",
             "circle-radius": ["interpolate", ["linear"], ["zoom"],
               1, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.25, 1, 1.15],
-              5, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.45, 1, 2.1],
+              3, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.35, 1, 1.63],
+              5, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.7, 1, 3.2],
+              6, ["interpolate", ["linear"], ["get", "intensity"], 0, 1.05, 1, 5.1],
+              8, ["interpolate", ["linear"], ["get", "intensity"], 0, 2, 1, 10.5],
             ],
-            "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.08, 1, 0.92],
-            "circle-blur": 0.82,
+            "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.025, 1, 0.36],
+            "circle-blur": 1,
+          },
+        });
+        map.addLayer({
+          id: "night-lights-core",
+          type: "circle",
+          source: "night-lights",
+          paint: {
+            "circle-color": "#ffe4b8",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"],
+              1, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.12, 1, 0.58],
+              3, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.18, 1, 0.84],
+              5, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.32, 1, 1.55],
+              6, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.43, 1, 2.15],
+              8, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.75, 1, 3.8],
+            ],
+            "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.04, 1, 0.68],
+            "circle-blur": 0.86,
           },
         });
         const updateEarthLighting = () => {
