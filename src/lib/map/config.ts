@@ -1,33 +1,5 @@
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
 
-export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-export const MAP_STYLE: StyleSpecification = {
-  version: 8,
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  sources: {
-    openStreetMap: {
-      type: "raster",
-      tiles: [TILE_URL],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [
-    {
-      id: "open-street-map",
-      type: "raster",
-      source: "openStreetMap",
-      paint: {
-        "raster-saturation": -0.82,
-        "raster-contrast": -0.12,
-        "raster-brightness-max": 0.94,
-        "raster-opacity": 0.74,
-      },
-    },
-  ],
-};
-
 export const GLOBE_STYLE: StyleSpecification = {
   version: 8,
   glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
@@ -60,13 +32,6 @@ export const GLOBE_STYLE: StyleSpecification = {
     },
   ],
 };
-
-export const MAP_ATTRIBUTION = {
-  label: "© OpenStreetMap contributors",
-  href: "https://www.openstreetmap.org/copyright",
-  libraryLabel: "MapLibre",
-  libraryHref: "https://maplibre.org/",
-} as const;
 
 export const GLOBE_ATTRIBUTION = {
   label: "Satellite imagery · NASA EOSDIS GIBS",

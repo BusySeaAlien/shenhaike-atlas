@@ -29,7 +29,7 @@ try {
     </section>
 
     <section class="home-section" aria-labelledby="home-places-heading">
-      <div class="section-heading"><div><p class="eyebrow">PLACES / LAST VISITED</p><h2 id="home-places-heading">Recent Places</h2></div><a href="/map/">Explore map ↗</a></div>
+      <div class="section-heading"><div><p class="eyebrow">PLACES / LAST VISITED</p><h2 id="home-places-heading">Recent Places</h2></div><a href="/#globe">Explore map ↗</a></div>
       {data.recentPlaces.length ? <ol class="place-list">{data.recentPlaces.map((place, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><div><a href={`/places/${place.slug}/`}>{place.nameZh || place.name}</a>{place.nameZh && <small>{place.name}</small>}</div><p>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</p><time datetime={place.lastVisitedAt}>{place.lastVisitedAt}</time></li>)}</ol> : <p class="archive-empty">No visited places yet.</p>}
     </section>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLUSTER_RADIUS_EXPRESSION, MAP_ATTRIBUTION, PLACE_CLUSTER_OPTIONS } from "./config";
+import { CLUSTER_RADIUS_EXPRESSION, PLACE_CLUSTER_OPTIONS } from "./config";
 
 describe("map clustering configuration", () => {
   it("uses MapLibre native clustering with a bounded screen-space radius", () => {
@@ -26,10 +26,5 @@ describe("map clustering configuration", () => {
       10,
       32,
     ]);
-  });
-
-  it("credits MapLibre as the rendering library", () => {
-    expect(MAP_ATTRIBUTION.libraryLabel).toBe("MapLibre");
-    expect(MAP_ATTRIBUTION.libraryHref).toBe("https://maplibre.org/");
   });
 });

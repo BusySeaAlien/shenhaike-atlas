@@ -10,10 +10,11 @@ interface Props {
 }
 
 const { points, routes } = Astro.props;
+const years = [...new Set(points.flatMap((point) => point.years))].sort((a, b) => b.localeCompare(a));
 const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 ---
 
-<section class="prehome-globe" data-prehome-globe>
+<section class="prehome-globe" id="globe" data-prehome-globe>
   <header class="prehome-globe-heading">
     <div>
       <p class="eyebrow">ATLAS / THE WORLD IN MEMORY</p>
@@ -37,6 +38,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           <button type="button" class:list={{ "is-active": DEFAULT_VIEW === "footprint" }} aria-pressed={DEFAULT_VIEW === "footprint"} data-globe-view="footprint">Footprint</button>
           <button type="button" class:list={{ "is-active": DEFAULT_VIEW === "journey" }} aria-pressed={DEFAULT_VIEW === "journey"} data-globe-view="journey">Journey</button>
         </div>
+        <label data-year-selector hidden={DEFAULT_VIEW !== "footprint"}>
+          <span>Year</span>
+          <select data-globe-year aria-label="Filter footprint by visit year">
+            <option value="">All time</option>
+            {years.map((year) => <option value={year}>{year}</option>)}
+          </select>
+        </label>
         <label data-journey-selector hidden={DEFAULT_VIEW !== "journey"}>
           <span>Journey</span>
           <select data-globe-journey aria-label="Show a journey visit sequence">
@@ -63,6 +71,25 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         <p data-globe-place-location></p>
         <a data-globe-place-link>View place ↗</a>
       </aside>
+
+      <section class="globe-results" aria-labelledby="globe-results-title">
+        <header>
+          <div><p class="eyebrow">FILTERED PLACES</p><h2 id="globe-results-title" data-globe-results-title>{points.length} places · All time</h2></div>
+          <button type="button" data-globe-results-toggle hidden>View all</button>
+        </header>
+        <ol data-globe-results-list>
+          {points.map((point, index) => (
+            <li data-globe-result={point.id} hidden={index >= 8}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <div><button type="button" data-globe-result-select={point.id}>{point.name}</button>{point.name !== point.nameEn && <small>{point.nameEn}</small>}</div>
+              <p>{point.location}</p>
+              <time datetime={point.lastVisitedAt}>{point.lastVisitedAt}</time>
+              <a href={point.href} aria-label={`View ${point.name}`}>↗</a>
+            </li>
+          ))}
+        </ol>
+        <p data-globe-results-empty hidden>No places match this filter.</p>
+      </section>
 
       <noscript>
         <div class="globe-noscript">
@@ -98,6 +125,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     showWorldAdministrative,
   } from "../lib/map/administrative/world";
   import { CLUSTER_RADIUS_EXPRESSION, GLOBE_STYLE, PLACE_CLUSTER_OPTIONS } from "../lib/map/config";
+  import { filterMapPoints } from "../lib/map/points";
   import {
     CHINA_OVERVIEW_BOUNDS,
     CHINA_OVERVIEW_PADDING,
@@ -143,15 +171,30 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     const routeBySlug = new Map(routes.map((route) => [route.slug, route]));
     const scopeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-scope]")];
     const viewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-view]")];
+    const yearSelector = root.querySelector<HTMLElement>("[data-year-selector]");
     const journeySelector = root.querySelector<HTMLElement>("[data-journey-selector]");
     const caption = root.querySelector<HTMLElement>("[data-globe-caption]");
     const footprintTip = root.querySelector<HTMLElement>("[data-globe-footprint-tip]");
+    const yearSelect = root.querySelector<HTMLElement>("[data-globe-year]") as HTMLSelectElement | null;
     const journeySelect = root.querySelector<HTMLElement>("[data-globe-journey]") as HTMLSelectElement | null;
     const selection = root.querySelector<HTMLElement>("[data-globe-selection]");
+    const resultsTitle = root.querySelector<HTMLElement>("[data-globe-results-title]");
+    const resultsToggle = root.querySelector<HTMLButtonElement>("[data-globe-results-toggle]");
+    const resultsEmpty = root.querySelector<HTMLElement>("[data-globe-results-empty]");
+    const resultItems = new Map(
+      [...root.querySelectorAll<HTMLElement>("[data-globe-result]")].map((item) => [item.dataset.globeResult!, item]),
+    );
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let scopeMode: ScopeMode = DEFAULT_SCOPE;
-    let viewMode: ViewMode = DEFAULT_VIEW;
-    let selectedJourney = "";
+    const urlState = new URLSearchParams(window.location.search);
+    let scopeMode: ScopeMode = urlState.get("scope") === "china" ? "china" : DEFAULT_SCOPE;
+    let viewMode: ViewMode = urlState.get("view") === "journey" ? "journey" : DEFAULT_VIEW;
+    let selectedYear = points.some((point) => point.years.includes(urlState.get("year") ?? "")) ? urlState.get("year")! : "";
+    let selectedJourney = routeBySlug.has(urlState.get("journey") ?? "") ? urlState.get("journey")! : "";
+    if (yearSelect) yearSelect.value = selectedYear;
+    if (journeySelect) journeySelect.value = selectedJourney;
+    let resultsExpanded = false;
+    let clusterResultIds: Set<string> | null = null;
+    let stateRevision = 0;
     let popup: maplibregl.Popup | null = null;
     let mapVisible = true;
     let frameId = 0;
@@ -208,8 +251,8 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
     // Footprint hover readout (§58/§59). Counts come from the same place codes
     // the fill uses, so the number and the colour can never disagree.
-    const worldPlaceCounts = countByCode(points, (point) => point.sovereignCountryCode);
-    const chinaPlaceCounts = countByCode(points, (point) => point.admin1Code);
+    let worldPlaceCounts = countByCode(points, (point) => point.sovereignCountryCode);
+    let chinaPlaceCounts = countByCode(points, (point) => point.admin1Code);
     let worldHoverBound = false;
     let chinaHoverBound = false;
 
@@ -255,15 +298,64 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         .addTo(map);
     };
 
+    const filteredPoints = () => pointsForMode(
+      filterMapPoints(points, viewMode === "footprint"
+        ? { year: selectedYear || undefined }
+        : { journey: selectedJourney || undefined }),
+      scopeMode,
+    );
+
+    const updateResults = (visible: MapPoint[]) => {
+      const listed = clusterResultIds
+        ? visible.filter((point) => clusterResultIds?.has(point.id))
+        : visible;
+      const label = clusterResultIds
+        ? "Selected cluster"
+        : viewMode === "footprint"
+          ? selectedYear || "All time"
+          : routeBySlug.get(selectedJourney)?.nameZh || routeBySlug.get(selectedJourney)?.name || "All journeys";
+      if (resultsTitle) resultsTitle.textContent = `${listed.length} ${listed.length === 1 ? "place" : "places"} · ${label}`;
+      if (resultsEmpty) resultsEmpty.hidden = listed.length > 0;
+      const listedIds = new Set(listed.map((point) => point.id));
+      let position = 0;
+      resultItems.forEach((item, id) => {
+        const matches = listedIds.has(id);
+        const shown = matches && (resultsExpanded || position < 8);
+        item.hidden = !shown;
+        if (matches) {
+          position += 1;
+          const number = item.querySelector<HTMLElement>(":scope > span");
+          if (number) number.textContent = String(position).padStart(2, "0");
+        }
+      });
+      if (resultsToggle) {
+        resultsToggle.hidden = listed.length <= 8;
+        resultsToggle.textContent = resultsExpanded ? "Show less" : `View all ${listed.length}`;
+      }
+    };
+
+    root.querySelectorAll<HTMLButtonElement>("[data-globe-result-select]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const point = pointById.get(button.dataset.globeResultSelect ?? "");
+        if (!point) return;
+        showPlace(point);
+        map.easeTo({
+          center: [point.longitude, point.latitude],
+          zoom: Math.max(map.getZoom(), 6),
+          duration: reducedMotion.matches ? 0 : 650,
+        });
+      });
+    });
+
+    resultsToggle?.addEventListener("click", () => {
+      resultsExpanded = !resultsExpanded;
+      updateResults(filteredPoints());
+    });
+
     const updateJourney = () => {
       const route = routeBySlug.get(selectedJourney);
       (map.getSource("journey-route") as GeoJSONSource | undefined)?.setData(journeyLineGeoJson(route, scopeMode));
       (map.getSource("journey-stops") as GeoJSONSource | undefined)?.setData(journeyStopsGeoJson(route, scopeMode));
-      if (status) {
-        status.textContent = route
-          ? `${route.nameZh || route.name}: visit sequence shown.`
-          : `${pointsForMode(points, scopeMode).length} visited places shown.`;
-      }
     };
 
     const updateJourneyOptions = () => {
@@ -298,8 +390,15 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
      * from `visibilityPlan`, which is unit-tested without a map.
      */
     const applyMapState = (animate = true) => {
+      const revision = ++stateRevision;
       const plan = visibilityPlan(scopeMode, viewMode);
       const duration = animate && !reducedMotion.matches ? 950 : 0;
+      updateJourneyOptions();
+      const visiblePoints = filteredPoints();
+      clusterResultIds = null;
+      resultsExpanded = false;
+      worldPlaceCounts = countByCode(visiblePoints, (point) => point.sovereignCountryCode);
+      chinaPlaceCounts = countByCode(visiblePoints, (point) => point.admin1Code);
 
       for (const [buttons, key, value] of [
         [scopeButtons, "globeScope", scopeMode],
@@ -312,16 +411,25 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         }
       }
 
+      if (yearSelector) yearSelector.hidden = viewMode !== "footprint";
       if (journeySelector) journeySelector.hidden = !plan.journeySelector;
       if (caption) caption.textContent = captionFor(viewMode);
       setJourneyLayersVisible(plan.journeyLayers);
 
-      updateJourneyOptions();
       closePopup();
       if (selection) selection.hidden = true;
       (map.getSource("globe-places") as GeoJSONSource | undefined)
-        ?.setData(pointGeoJson(pointsForMode(points, scopeMode)));
+        ?.setData(pointGeoJson(visiblePoints));
       updateJourney();
+      updateResults(visiblePoints);
+      if (status) status.textContent = `${visiblePoints.length} filtered places shown.`;
+      const nextUrl = new URL(window.location.href);
+      for (const key of ["scope", "view", "year", "journey"]) nextUrl.searchParams.delete(key);
+      if (scopeMode !== DEFAULT_SCOPE) nextUrl.searchParams.set("scope", scopeMode);
+      if (viewMode !== DEFAULT_VIEW) nextUrl.searchParams.set("view", viewMode);
+      if (viewMode === "footprint" && selectedYear) nextUrl.searchParams.set("year", selectedYear);
+      if (viewMode === "journey" && selectedJourney) nextUrl.searchParams.set("journey", selectedJourney);
+      window.history.replaceState(null, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
       pauseRotation();
 
       // Administrative fill. Each scope loads its own data the first time
@@ -337,8 +445,8 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
               worldHoverBound = true;
             }
             // Scope or view may have moved on while the chunks loaded.
-            if (!visibilityPlan(scopeMode, viewMode).worldAdmin) return;
-            applyWorldVisitedState(map, getVisitedCountries(points));
+            if (revision !== stateRevision || !visibilityPlan(scopeMode, viewMode).worldAdmin) return;
+            applyWorldVisitedState(map, getVisitedCountries(visiblePoints));
             showWorldAdministrative(map);
           })
           .catch((error) => console.warn("Atlas world footprint unavailable", error));
@@ -353,8 +461,8 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
               bindChinaHover(map, (hover) => showFootprintTip(hover, chinaPlaceCounts));
               chinaHoverBound = true;
             }
-            if (!visibilityPlan(scopeMode, viewMode).chinaAdmin) return;
-            applyChinaVisitedState(map, getVisitedChinaRegions(points));
+            if (revision !== stateRevision || !visibilityPlan(scopeMode, viewMode).chinaAdmin) return;
+            applyChinaVisitedState(map, getVisitedChinaRegions(visiblePoints));
             showChinaAdministrative(map);
           })
           .catch((error) => console.warn("Atlas China footprint unavailable", error));
@@ -370,7 +478,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         void ensureChinaBoundaryLoaded(map)
           .then(() => {
             // Scope may have flipped back while the boundary chunks loaded.
-            if (visibilityPlan(scopeMode, viewMode).chinaAuthority) showChinaBoundary(map);
+            if (revision === stateRevision && visibilityPlan(scopeMode, viewMode).chinaAuthority) showChinaBoundary(map);
           })
           .catch((error) => console.warn("Atlas China boundary unavailable", error));
       } else {
@@ -522,8 +630,19 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           const feature = event.features?.[0];
           const clusterId = feature?.properties?.cluster_id;
           if (typeof clusterId !== "number" || feature?.geometry.type !== "Point") return;
-          const zoom = await (map.getSource("globe-places") as GeoJSONSource).getClusterExpansionZoom(clusterId);
-          map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom, duration: reducedMotion.matches ? 0 : 750 });
+          const source = map.getSource("globe-places") as GeoJSONSource;
+          try {
+            const [zoom, leaves] = await Promise.all([
+              source.getClusterExpansionZoom(clusterId),
+              source.getClusterLeaves(clusterId, feature.properties?.point_count ?? 100, 0),
+            ]);
+            clusterResultIds = new Set(leaves.map((leaf) => String(leaf.properties?.id ?? "")));
+            resultsExpanded = false;
+            updateResults(filteredPoints());
+            map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom, duration: reducedMotion.matches ? 0 : 750 });
+          } catch {
+            // A filter can replace the source while cluster leaves are resolving.
+          }
         });
         const selectFeature = (event: MapLayerMouseEvent) => {
           pauseRotation();
@@ -559,10 +678,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       viewMode = button.dataset.globeView === "footprint" ? "footprint" : "journey";
       applyMapState();
     }));
+    yearSelect?.addEventListener("change", () => {
+      selectedYear = yearSelect.value;
+      applyMapState(false);
+    });
     journeySelect?.addEventListener("change", () => {
       selectedJourney = journeySelect.value;
-      pauseRotation();
-      updateJourney();
+      applyMapState(false);
     });
     const beginInteraction = () => {
       stopRotation();
