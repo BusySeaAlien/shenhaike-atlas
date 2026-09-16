@@ -66,7 +66,7 @@ code { padding: .15em .35em; background: var(--wash); }
 .prehome-globe-heading { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(250px, .65fr); gap: clamp(32px, 7vw, 100px); align-items: end; padding: 20px 0 46px; }
 .prehome-globe-heading h1 { font-size: clamp(62px, 10vw, 126px); }
 .prehome-globe-heading > p { max-width: 29em; margin: 0 0 8px; color: var(--muted); font-family: var(--serif); font-size: clamp(15px, 1.8vw, 20px); line-height: 1.9; }
-.globe-toolbar { display: grid; grid-template-columns: auto auto minmax(190px, 280px) 1fr; gap: 14px; align-items: end; padding: 14px 0; border-top: 1px solid var(--line); }
+.globe-toolbar { display: grid; grid-template-columns: auto auto auto minmax(190px, 280px) 1fr; gap: 14px; align-items: end; padding: 14px 0; border-top: 1px solid var(--line); }
 /* Scope group, View group, journey selector, caption. The caption is pinned to
    the last track so hiding the selector in Footprint does not shift it. */
 .globe-mode { display: flex; }
@@ -78,7 +78,7 @@ code { padding: .15em .35em; background: var(--wash); }
 /* `display: grid` outranks the UA [hidden] rule, so state it explicitly. */
 .globe-toolbar label[hidden] { display: none; }
 .globe-toolbar select { width: 100%; padding: 0 34px 0 12px; }
-.globe-toolbar > p { grid-column: 4; justify-self: end; margin: 0 0 12px; color: var(--muted); font-size: 9px; letter-spacing: .06em; }
+.globe-toolbar > p { grid-column: 5; justify-self: end; margin: 0 0 12px; color: var(--muted); font-size: 9px; letter-spacing: .06em; }
 .globe-stage { position: relative; height: clamp(560px, 78svh, 820px); min-height: 560px; overflow: hidden; background: #050607; }
 .prehome-globe .map-runtime-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .globe-canvas { position: absolute; inset: 0; z-index: 1; }

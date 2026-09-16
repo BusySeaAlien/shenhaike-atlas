@@ -38,6 +38,9 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           <button type="button" class:list={{ "is-active": DEFAULT_VIEW === "footprint" }} aria-pressed={DEFAULT_VIEW === "footprint"} data-globe-view="footprint">Footprint</button>
           <button type="button" class:list={{ "is-active": DEFAULT_VIEW === "journey" }} aria-pressed={DEFAULT_VIEW === "journey"} data-globe-view="journey">Journey</button>
         </div>
+        <div class="globe-mode" role="group" aria-label="Place display">
+          <button type="button" aria-pressed="false" data-globe-clusters>Cluster places</button>
+        </div>
         <label data-year-selector hidden={DEFAULT_VIEW !== "footprint"}>
           <span>Year</span>
           <select data-globe-year aria-label="Filter footprint by visit year">
@@ -171,6 +174,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     const routeBySlug = new Map(routes.map((route) => [route.slug, route]));
     const scopeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-scope]")];
     const viewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-view]")];
+    const clusterButton = root.querySelector<HTMLButtonElement>("[data-globe-clusters]");
     const yearSelector = root.querySelector<HTMLElement>("[data-year-selector]");
     const journeySelector = root.querySelector<HTMLElement>("[data-journey-selector]");
     const caption = root.querySelector<HTMLElement>("[data-globe-caption]");
@@ -188,6 +192,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     const urlState = new URLSearchParams(window.location.search);
     let scopeMode: ScopeMode = urlState.get("scope") === "china" ? "china" : DEFAULT_SCOPE;
     let viewMode: ViewMode = urlState.get("view") === "journey" ? "journey" : DEFAULT_VIEW;
+    let clusteringEnabled = urlState.get("cluster") === "1";
     let selectedYear = points.some((point) => point.years.includes(urlState.get("year") ?? "")) ? urlState.get("year")! : "";
     let selectedJourney = routeBySlug.has(urlState.get("journey") ?? "") ? urlState.get("journey")! : "";
     if (yearSelect) yearSelect.value = selectedYear;
@@ -410,6 +415,8 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           button.setAttribute("aria-pressed", String(active));
         }
       }
+      clusterButton?.classList.toggle("is-active", clusteringEnabled);
+      clusterButton?.setAttribute("aria-pressed", String(clusteringEnabled));
 
       if (yearSelector) yearSelector.hidden = viewMode !== "footprint";
       if (journeySelector) journeySelector.hidden = !plan.journeySelector;
@@ -424,11 +431,12 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       updateResults(visiblePoints);
       if (status) status.textContent = `${visiblePoints.length} filtered places shown.`;
       const nextUrl = new URL(window.location.href);
-      for (const key of ["scope", "view", "year", "journey"]) nextUrl.searchParams.delete(key);
+      for (const key of ["scope", "view", "year", "journey", "cluster"]) nextUrl.searchParams.delete(key);
       if (scopeMode !== DEFAULT_SCOPE) nextUrl.searchParams.set("scope", scopeMode);
       if (viewMode !== DEFAULT_VIEW) nextUrl.searchParams.set("view", viewMode);
       if (viewMode === "footprint" && selectedYear) nextUrl.searchParams.set("year", selectedYear);
       if (viewMode === "journey" && selectedJourney) nextUrl.searchParams.set("journey", selectedJourney);
+      if (clusteringEnabled) nextUrl.searchParams.set("cluster", "1");
       window.history.replaceState(null, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
       pauseRotation();
 
@@ -588,6 +596,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           type: "geojson",
           data: pointGeoJson(points),
           ...PLACE_CLUSTER_OPTIONS,
+          cluster: clusteringEnabled,
         });
         map.addLayer({
           id: "clusters",
@@ -678,6 +687,14 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       viewMode = button.dataset.globeView === "footprint" ? "footprint" : "journey";
       applyMapState();
     }));
+    clusterButton?.addEventListener("click", () => {
+      clusteringEnabled = !clusteringEnabled;
+      (map.getSource("globe-places") as GeoJSONSource | undefined)?.setClusterOptions({
+        ...PLACE_CLUSTER_OPTIONS,
+        cluster: clusteringEnabled,
+      });
+      applyMapState(false);
+    });
     yearSelect?.addEventListener("change", () => {
       selectedYear = yearSelect.value;
       applyMapState(false);
