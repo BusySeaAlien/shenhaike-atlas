@@ -5,7 +5,8 @@
  *
  *   node scripts/backfill-administrative-codes.ts              # dry run
  *   node scripts/backfill-administrative-codes.ts --apply      # write
- *   node scripts/backfill-administrative-codes.ts --remote     # production D1
+ *   node scripts/backfill-administrative-codes.ts --remote     # production dry run
+ *   node scripts/backfill-administrative-codes.ts --remote --apply --slug=seoul
  *
  * Resolution is coordinate-first, exactly as at runtime, so the backfilled
  * values are the ones the resolver would produce today. Rows whose coordinates
@@ -35,10 +36,14 @@ interface PlaceRow {
 const argv = process.argv.slice(2);
 const apply = argv.includes("--apply");
 const remote = argv.includes("--remote");
+const slug = argv.find((argument) => argument.startsWith("--slug="))?.slice("--slug=".length) ?? null;
+if (slug !== null && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+  throw new Error(`invalid --slug value: ${slug}`);
+}
 
 function run(sql: string): string {
   const args = [
-    "wrangler", "d1", "execute", "atlas",
+    "wrangler", "d1", "execute", "DB",
     ...(remote ? ["--remote"] : ["--local"]),
     "--json",
     "--command", sql,
@@ -73,8 +78,9 @@ function sqlLiteral(value: string | null): string {
 const rows = queryRows(`
   SELECT id, slug, name, country, region, longitude, latitude,
          sovereign_country_code, admin1_code
-  FROM ${PLAYER} ORDER BY id
+  FROM ${PLAYER}${slug ? ` WHERE slug = '${slug}'` : ""} ORDER BY id
 `);
+if (slug && rows.length === 0) throw new Error(`place not found: ${slug}`);
 console.log(`places: ${rows.length} (${remote ? "remote" : "local"})`);
 
 const updates: Array<{ row: PlaceRow; country: string | null; admin1: string | null }> = [];

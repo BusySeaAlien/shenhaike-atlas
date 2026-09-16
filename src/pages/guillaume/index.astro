@@ -1,20 +1,22 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { getDatabase } from "../../lib/db/client";
+import { listJourneys } from "../../lib/db/journeys";
+import { listPlaces } from "../../lib/db/places";
 
 const db = getDatabase();
-const counts = await db.prepare(`
-  SELECT
-    (SELECT COUNT(*) FROM atlas_places) AS places,
-    (SELECT COUNT(*) FROM atlas_journeys) AS journeys,
-    (SELECT COUNT(*) FROM atlas_visits) AS visits
-`).first<{ places: number; journeys: number; visits: number }>();
-const { results: recent } = await db.prepare(`
-  SELECT 'Place' AS type, id, name, updated_at FROM atlas_places
-  UNION ALL
-  SELECT 'Journey' AS type, id, name, updated_at FROM atlas_journeys
-  ORDER BY updated_at DESC LIMIT 8
-`).all<{ type: "Place" | "Journey"; id: number; name: string; updated_at: string }>();
+const [counts, journeyResults, placeResults] = await Promise.all([
+  db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM atlas_places) AS places,
+      (SELECT COUNT(*) FROM atlas_journeys) AS journeys,
+      (SELECT COUNT(*) FROM atlas_visits) AS visits
+  `).first<{ places: number; journeys: number; visits: number }>(),
+  listJourneys(db),
+  listPlaces(db),
+]);
+const journeys = journeyResults.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+const places = placeResults.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 ---
 
 <AdminLayout title="Dashboard">
@@ -26,7 +28,11 @@ const { results: recent } = await db.prepare(`
   </dl>
   <div class="quick-actions"><a class="button" href="/guillaume/places/new/">+ New Place</a><a class="button secondary" href="/guillaume/journeys/new/">+ New Journey</a></div>
   <section class="admin-section">
-    <h2>Recently updated</h2>
-    {recent.length ? <table class="data-table"><thead><tr><th>Type</th><th>Name</th><th>Updated</th></tr></thead><tbody>{recent.map((item) => <tr><td>{item.type}</td><td><a href={item.type === "Place" ? `/guillaume/places/${item.id}/` : `/guillaume/journeys/${item.id}/`}>{item.name}</a></td><td>{item.updated_at}</td></tr>)}</tbody></table> : <p class="empty-admin">No records yet.</p>}
+    <h2>Journeys</h2>
+    {journeys.length ? <table class="data-table"><thead><tr><th>Journey</th><th>Dates</th><th>Updated</th></tr></thead><tbody>{journeys.map((journey) => <tr><td><a href={`/guillaume/journeys/${journey.id}/`}>{journey.nameZh || journey.name}</a><br /><small>{journey.slug}</small></td><td>{journey.startDate} — {journey.endDate}</td><td>{journey.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No journeys yet.</p>}
+  </section>
+  <section class="admin-section">
+    <h2>Places</h2>
+    {places.length ? <table class="data-table"><thead><tr><th>Place</th><th>Region</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{places.map((place) => <tr><td><a href={`/guillaume/places/${place.id}/`}>{place.nameZh || place.name}</a><br /><small>{place.slug}</small></td><td>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</td><td>{place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}</td><td>{place.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No places yet.</p>}
   </section>
 </AdminLayout>
