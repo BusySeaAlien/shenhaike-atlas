@@ -304,3 +304,13 @@ These are understood and deliberately not fixed here. Read before running
    returns `FRA` and `ITA`. The form offers `MCO` and `VAT`; selecting either at
    those coordinates fails the "国家与坐标不一致" check. The existing `monaco`
    row keeps its correct `MCO` because it was written before this check existed.
+
+7. **Geneva's stored coordinate is a deliberate offset.** The 110m Swiss
+   polygon cuts the Geneva lobe off entirely: the city centre `46.2044, 6.1432`
+   resolves to `FRA`, and nothing within ~11 km of it resolves to `CHE`. The
+   `geneva` row stores the nearest robust Swiss point `46.2945, 6.08`
+   (11.1 km north-west of the centre) so the Footprint counts it as `CHE`.
+   The pin therefore does not sit on the city. Backfill leaves it alone (row
+   and resolver agree), but "correcting" the coordinate back to the true centre
+   would make the resolver return `FRA` again. Same class as limitation 5's
+   south-coast gaps; a 10m supplement would fix it.
