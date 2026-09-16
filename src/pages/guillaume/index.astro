@@ -6,6 +6,7 @@ import { listPlaces } from "../../lib/db/places";
 
 const db = getDatabase();
 const view = Astro.url.searchParams.get("view") === "places" ? "places" : "journeys";
+const journeySort = Astro.url.searchParams.get("sort") === "asc" ? "asc" : "desc";
 const counts = await db.prepare(`
   SELECT
     (SELECT COUNT(*) FROM atlas_places) AS places,
@@ -13,7 +14,10 @@ const counts = await db.prepare(`
     (SELECT COUNT(*) FROM atlas_visits) AS visits
 `).first<{ places: number; journeys: number; visits: number }>();
 const journeys = view === "journeys"
-  ? (await listJourneys(db)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  ? (await listJourneys(db)).sort((a, b) => {
+      const comparison = a.startDate.localeCompare(b.startDate);
+      return journeySort === "asc" ? comparison : -comparison;
+    })
   : [];
 const places = view === "places"
   ? (await listPlaces(db)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -32,6 +36,11 @@ const places = view === "places"
     <nav class="record-switcher" aria-label="Choose records to view">
       <a class:list={["button", { secondary: view !== "journeys" }]} href="/guillaume/?view=journeys" aria-current={view === "journeys" ? "page" : undefined}>Journeys</a>
       <a class:list={["button", { secondary: view !== "places" }]} href="/guillaume/?view=places" aria-current={view === "places" ? "page" : undefined}>Places</a>
+      {view === "journeys" && (
+        <a class="button secondary sort-toggle" href={`/guillaume/?view=journeys&sort=${journeySort === "desc" ? "asc" : "desc"}`}>
+          {journeySort === "desc" ? "Dates: newest first ↓" : "Dates: oldest first ↑"}
+        </a>
+      )}
     </nav>
     {view === "journeys" ? (
       journeys.length ? <table class="data-table"><thead><tr><th>Journey</th><th>Dates</th><th>Updated</th></tr></thead><tbody>{journeys.map((journey) => <tr><td><a href={`/guillaume/journeys/${journey.id}/`}>{journey.nameZh || journey.name}</a><br /><small>{journey.slug}</small></td><td>{journey.startDate} — {journey.endDate}</td><td>{journey.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No journeys yet.</p>

@@ -21,6 +21,7 @@ button:disabled { cursor: wait; opacity: .55; }
 .admin-section { margin-top: 52px; }
 .admin-section h2 { margin: 0 0 18px; font-family: var(--serif); font-size: 24px; font-weight: 400; }
 .record-switcher { display: flex; gap: 10px; margin-bottom: 18px; }
+.record-switcher .sort-toggle { margin-left: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table th { padding: 10px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .1em; text-align: left; text-transform: uppercase; }
 .data-table td { padding: 15px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -58,6 +59,8 @@ button:disabled { cursor: wait; opacity: .55; }
   .field-grid { grid-template-columns: 1fr; }
   .field.wide { grid-column: 1; }
   .data-table { display: block; overflow-x: auto; }
+  .record-switcher { flex-wrap: wrap; }
+  .record-switcher .sort-toggle { width: 100%; margin-left: 0; }
   .visit-card { grid-template-columns: 32px 1fr; }
   .visit-form { grid-template-columns: 1fr; }
   .visit-controls { grid-column: 2; }
