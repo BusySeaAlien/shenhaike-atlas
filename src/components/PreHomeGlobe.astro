@@ -135,6 +135,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     GLOBE_ROTATION,
     WORLD_CAMERA,
     journeyLineGeoJson,
+    journeyCameraTarget,
     journeyStopsGeoJson,
     nightLightsGeoJson,
     pointsForMode,
@@ -220,6 +221,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     let map: maplibregl.Map;
 
     const canRotate = () => scopeMode === "world"
+      && !(viewMode === "journey" && selectedJourney)
       && rotationAllowedAtZoom(map.getZoom())
       && !reducedMotion.matches
       && mapVisible
@@ -493,7 +495,20 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         hideChinaBoundary(map);
       }
 
-      if (scopeMode === "china") {
+      const journeyCamera = viewMode === "journey"
+        ? journeyCameraTarget(routeBySlug.get(selectedJourney), scopeMode)
+        : null;
+      if (journeyCamera?.kind === "center") {
+        map.easeTo({ center: journeyCamera.center, zoom: 5, bearing: 0, pitch: 0, duration });
+      } else if (journeyCamera?.kind === "bounds") {
+        map.fitBounds(journeyCamera.bounds, {
+          padding: { top: 56, right: 72, bottom: 56, left: 72 },
+          maxZoom: 5,
+          bearing: 0,
+          pitch: 0,
+          duration,
+        });
+      } else if (scopeMode === "china") {
         map.fitBounds(CHINA_OVERVIEW_BOUNDS, { padding: CHINA_OVERVIEW_PADDING, bearing: 0, pitch: 0, duration });
       } else {
         map.easeTo({ ...WORLD_CAMERA, bearing: 0, pitch: 0, duration });
@@ -701,7 +716,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     });
     journeySelect?.addEventListener("change", () => {
       selectedJourney = journeySelect.value;
-      applyMapState(false);
+      applyMapState();
     });
     const beginInteraction = () => {
       stopRotation();

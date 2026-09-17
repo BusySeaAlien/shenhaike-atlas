@@ -7,6 +7,9 @@ export type { ScopeMode };
 
 type Coordinate = [number, number];
 export type NightLightPoint = [longitude: number, latitude: number, brightness: number];
+export type JourneyCameraTarget =
+  | { kind: "center"; center: Coordinate }
+  | { kind: "bounds"; bounds: [Coordinate, Coordinate] };
 
 export const WORLD_CAMERA = { center: [104, 24] as Coordinate, zoom: 1.9 } as const;
 
@@ -119,6 +122,46 @@ export function routeAvailableInMode(route: MapJourneyRoute, mode: ScopeMode): b
 
 export function stopsForMode(stops: MapJourneyStop[], mode: ScopeMode): MapJourneyStop[] {
   return mode === "china" ? stops.filter((stop) => isChinaCountry(stop.country)) : stops;
+}
+
+/**
+ * Frames the visible stops of a journey using the shortest longitude span.
+ * The latter matters for journeys crossing the date line: ordinary min/max
+ * bounds would turn a short hop from 170 E to 170 W into a near-global view.
+ */
+export function journeyCameraTarget(route: MapJourneyRoute | undefined, mode: ScopeMode): JourneyCameraTarget | null {
+  const stops = route ? stopsForMode(route.stops, mode) : [];
+  if (!stops.length) return null;
+
+  const latitudes = stops.map((stop) => stop.latitude);
+  const longitudes = stops
+    .map((stop) => ((stop.longitude % 360) + 360) % 360)
+    .sort((a, b) => a - b);
+
+  let largestGapIndex = longitudes.length - 1;
+  let largestGap = longitudes[0] + 360 - longitudes.at(-1)!;
+  for (let index = 0; index < longitudes.length - 1; index += 1) {
+    const gap = longitudes[index + 1] - longitudes[index];
+    if (gap > largestGap) {
+      largestGap = gap;
+      largestGapIndex = index;
+    }
+  }
+
+  let west = longitudes[(largestGapIndex + 1) % longitudes.length];
+  let east = longitudes[largestGapIndex];
+  if (east < west) east += 360;
+  if (west > 180) {
+    west -= 360;
+    east -= 360;
+  }
+
+  const south = Math.min(...latitudes);
+  const north = Math.max(...latitudes);
+  if (west === east && south === north) {
+    return { kind: "center", center: [west, south] };
+  }
+  return { kind: "bounds", bounds: [[west, south], [east, north]] };
 }
 
 function sameCoordinate(a: Coordinate, b: Coordinate): boolean {

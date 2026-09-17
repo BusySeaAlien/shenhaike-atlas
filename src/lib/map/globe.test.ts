@@ -5,6 +5,7 @@ import {
   WORLD_CAMERA,
   GLOBE_ROTATION,
   isChinaCountry,
+  journeyCameraTarget,
   nightLightsGeoJson,
   journeyLineGeoJson,
   pointsForMode,
@@ -91,5 +92,30 @@ describe("globe data helpers", () => {
     expect(segments[0][1][0]).toBe(180);
     expect(segments[1][0][0]).toBe(-180);
     expect(segments[0][1][1]).toBeCloseTo(15);
+  });
+
+  it("frames a selected journey around its visible stops", () => {
+    expect(journeyCameraTarget(route, "world")).toEqual({
+      kind: "bounds",
+      bounds: [[116, 31], [139, 40]],
+    });
+    expect(journeyCameraTarget(route, "china")).toEqual({
+      kind: "bounds",
+      bounds: [[116, 31], [121, 40]],
+    });
+  });
+
+  it("uses the short side of the globe for a date-line journey", () => {
+    const dateLineRoute: MapJourneyRoute = {
+      ...route,
+      stops: [
+        { ...route.stops[0], longitude: 170, latitude: 10 },
+        { ...route.stops[1], longitude: -170, latitude: 20 },
+      ],
+    };
+    expect(journeyCameraTarget(dateLineRoute, "world")).toEqual({
+      kind: "bounds",
+      bounds: [[170, 10], [190, 20]],
+    });
   });
 });
