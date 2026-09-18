@@ -1,0 +1,12 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listAirports } from "../../../lib/db/airports";
+
+const airports = await listAirports(getDatabase());
+---
+
+<AdminLayout title="Airports">
+  <div class="admin-heading"><div><p class="eyebrow">FLIGHT ARCHIVE / AIRPORTS</p><h1>Airports</h1></div><a class="button" href="/guillaume/airports/new/">+ New Airport</a></div>
+  {airports.length ? <table class="data-table"><thead><tr><th>IATA</th><th>Airport</th><th>Location</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{airports.map((airport) => <tr><td><a href={`/guillaume/airports/${airport.id}/`}>{airport.iataCode}</a><br /><small>{airport.icaoCode ?? "—"}</small></td><td>{airport.nameZh || airport.name}{airport.nameZh && <><br /><small>{airport.name}</small></>}</td><td>{[airport.city, airport.region, airport.country].filter(Boolean).join(" · ")}</td><td>{airport.latitude.toFixed(4)}, {airport.longitude.toFixed(4)}</td><td>{airport.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No airports yet.</p>}
+</AdminLayout>

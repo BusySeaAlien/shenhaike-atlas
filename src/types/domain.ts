@@ -236,3 +236,177 @@ export interface PreHomeData extends HomeData {
   routes: MapJourneyRoute[];
   wishlist: WishlistPoint[];
 }
+
+// ---------------------------------------------------------------------------
+// Flight archive (Flight handoff §5)
+// ---------------------------------------------------------------------------
+
+export interface Airport {
+  id: number;
+  iataCode: string;
+  icaoCode: string | null;
+  name: string;
+  nameZh: string | null;
+  city: string;
+  cityZh: string | null;
+  country: string;
+  countryCode: string;
+  region: string | null;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  elevationFt: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AirportInput {
+  iataCode: string;
+  icaoCode?: string | null;
+  name: string;
+  nameZh?: string | null;
+  city: string;
+  cityZh?: string | null;
+  country: string;
+  region?: string | null;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  elevationFt?: number | null;
+  notes?: string | null;
+}
+
+export interface Airline {
+  id: number;
+  iataCode: string;
+  icaoCode: string | null;
+  name: string;
+  nameZh: string | null;
+  country: string;
+  countryCode: string;
+  callsign: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AirlineInput {
+  iataCode: string;
+  icaoCode?: string | null;
+  name: string;
+  nameZh?: string | null;
+  country: string;
+  callsign?: string | null;
+  notes?: string | null;
+}
+
+export interface AircraftType {
+  id: number;
+  icaoCode: string;
+  manufacturer: string;
+  model: string;
+  modelZh: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AircraftTypeInput {
+  icaoCode: string;
+  manufacturer: string;
+  model: string;
+  modelZh?: string | null;
+  notes?: string | null;
+}
+
+export type CabinClass =
+  | "economy"
+  | "premium_economy"
+  | "business"
+  | "first"
+  | "other";
+
+export interface Flight {
+  id: number;
+  airlineId: number;
+  flightNumber: string;
+  flightDate: string;
+  departureAirportId: number;
+  arrivalAirportId: number;
+  journeyId: number | null;
+  aircraftTypeId: number | null;
+  aircraftRegistration: string | null;
+  scheduledDepartureLocal: string | null;
+  scheduledArrivalLocal: string | null;
+  cabinClass: CabinClass | null;
+  seatNumber: string | null;
+  notes: string | null;
+  greatCircleKm: number;
+  routeFactor: number;
+  routeDistanceKm: number;
+  estimatedHours: number;
+  formulaVersion: number;
+  isDomestic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Flight inputs carry no derived fields: the server computes d/k/D/T, the
+ * domestic flag and the formula version from the two airports (handoff §4.5).
+ */
+export interface FlightInput {
+  airlineId: number;
+  flightNumber: string;
+  flightDate: string;
+  departureAirportId: number;
+  arrivalAirportId: number;
+  journeyId?: number | null;
+  aircraftTypeId?: number | null;
+  aircraftRegistration?: string | null;
+  scheduledDepartureLocal?: string | null;
+  scheduledArrivalLocal?: string | null;
+  cabinClass?: CabinClass | null;
+  seatNumber?: string | null;
+  notes?: string | null;
+}
+
+// Public `/flight/` payload (handoff §5).
+
+export interface FlightArchiveAirport {
+  id: string;
+  iataCode: string;
+  name: string;
+  nameZh: string | null;
+  city: string;
+  cityZh: string | null;
+  country: string;
+  countryCode: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface FlightArchiveRoute {
+  id: string;
+  displayNumber: string;
+  flightDate: string;
+  year: string;
+  isDomestic: boolean;
+  airlineName: string;
+  airlineNameZh: string | null;
+  aircraftLabel: string | null;
+  departure: FlightArchiveAirport;
+  arrival: FlightArchiveAirport;
+  journeyName: string | null;
+  journeyNameZh: string | null;
+  greatCircleKm: number;
+  routeDistanceKm: number;
+  estimatedHours: number;
+}
+
+export interface FlightArchiveData {
+  airports: FlightArchiveAirport[];
+  flights: FlightArchiveRoute[];
+  years: string[];
+}

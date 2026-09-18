@@ -24,6 +24,11 @@ export function numberValue(value: unknown): number {
   return typeof value === "number" ? value : Number.NaN;
 }
 
+export function optionalNumberValue(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  return typeof value === "number" && Number.isFinite(value) ? value : Number.NaN;
+}
+
 export function idFromParams(value: string | undefined): number {
   const id = Number(value);
   if (!Number.isInteger(id) || id < 1) throw new DataError("not_found", "记录不存在");

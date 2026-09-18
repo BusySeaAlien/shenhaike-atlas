@@ -1,0 +1,94 @@
+---
+import type { Airport } from "../../types/domain";
+import { COUNTRY_OPTIONS } from "../../lib/countries";
+
+interface Props { airport?: Airport }
+const { airport } = Astro.props;
+const action = airport ? `/guillaume/api/airports/${airport.id}/` : "/guillaume/api/airports/";
+const method = airport ? "PATCH" : "POST";
+---
+
+<form class="admin-form" data-airport-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field"><label for="iataCode">IATA code *</label><input id="iataCode" name="iataCode" maxlength="3" required value={airport?.iataCode} /><span class="field-error" data-error="iataCode"></span></div>
+    <div class="field"><label for="icaoCode">ICAO code</label><input id="icaoCode" name="icaoCode" maxlength="4" value={airport?.icaoCode ?? ""} /><span class="field-error" data-error="icaoCode"></span></div>
+    <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={airport?.name} /><span class="field-error" data-error="name"></span></div>
+    <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={airport?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
+    <div class="field"><label for="city">City *</label><input id="city" name="city" required value={airport?.city} /><span class="field-error" data-error="city"></span></div>
+    <div class="field"><label for="cityZh">中文城市</label><input id="cityZh" name="cityZh" value={airport?.cityZh ?? ""} /><span class="field-error" data-error="cityZh"></span></div>
+    <div class="field"><label for="country">Country *</label><select id="country" name="country" required><option value="" disabled selected={!airport?.country}>请选择国家</option>{COUNTRY_OPTIONS.map((country) => <option value={country.name} selected={airport?.country === country.name}>{country.nameZh}（{country.name}）</option>)}</select><span class="field-error" data-error="country"></span></div>
+    <div class="field"><label for="region">Region</label><input id="region" name="region" value={airport?.region ?? ""} /><span class="field-error" data-error="region"></span></div>
+    <div class="field"><label for="latitude">Latitude *</label><input id="latitude" name="latitude" type="number" step="any" required value={airport?.latitude} /><span class="field-error" data-error="latitude"></span></div>
+    <div class="field"><label for="longitude">Longitude *</label><input id="longitude" name="longitude" type="number" step="any" required value={airport?.longitude} /><span class="field-error" data-error="longitude"></span></div>
+    <div class="field"><label for="timezone">Timezone (IANA) *</label><input id="timezone" name="timezone" placeholder="Asia/Shanghai" required value={airport?.timezone} /><span class="field-error" data-error="timezone"></span></div>
+    <div class="field"><label for="elevationFt">Elevation (ft)</label><input id="elevationFt" name="elevationFt" type="number" step="1" value={airport?.elevationFt ?? ""} /><span class="field-error" data-error="elevationFt"></span></div>
+    <div class="field wide"><label for="notes">Notes</label><textarea id="notes" name="notes">{airport?.notes ?? ""}</textarea><span class="field-error" data-error="notes"></span></div>
+  </div>
+  <div class="form-actions"><button type="submit">{airport ? "Save airport" : "Create airport"}</button><a class="button secondary" href="/guillaume/airports/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  airport && (
+    <div class="danger-zone">
+      <p>有航班记录引用此机场时，删除会被拒绝。</p>
+      <button class="danger" type="button" data-delete-airport data-action={`/guillaume/api/airports/${airport.id}/`}>Delete airport</button>
+    </div>
+  )
+}
+
+<script>
+  interface ApiResult { error?: { message?: string; fields?: Record<string, string> } }
+  const form = document.querySelector<HTMLFormElement>("[data-airport-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const numberOrNull = (value: FormDataEntryValue | null): number | null => {
+      const text = typeof value === "string" ? value.trim() : "";
+      return text ? Number(text) : null;
+    };
+    const payload = {
+      iataCode: data.get("iataCode"), icaoCode: data.get("icaoCode"),
+      name: data.get("name"), nameZh: data.get("nameZh"),
+      city: data.get("city"), cityZh: data.get("cityZh"),
+      country: data.get("country"), region: data.get("region"),
+      latitude: numberOrNull(data.get("latitude")), longitude: numberOrNull(data.get("longitude")),
+      timezone: data.get("timezone"), elevationFt: numberOrNull(data.get("elevationFt")),
+      notes: data.get("notes"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign("/guillaume/airports/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-airport]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this airport? This cannot be undone.")) return;
+    button.disabled = true;
+    const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+    const result = await response.json() as ApiResult;
+    if (response.ok) window.location.assign("/guillaume/airports/");
+    else { window.alert(result.error?.message ?? "Delete failed"); button.disabled = false; }
+  });
+</script>

@@ -30,6 +30,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
       pathname === "/" ||
       pathname === "/map" ||
       pathname === "/map/" ||
+      pathname === "/flight" ||
+      pathname === "/flight/" ||
       pathname === "/journeys" ||
       pathname.startsWith("/journeys/") ||
       pathname === "/timeline" ||

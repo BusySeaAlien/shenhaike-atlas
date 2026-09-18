@@ -1,0 +1,31 @@
+---
+import DataFailure from "../../components/DataFailure.astro";
+import FlightGlobe from "../../components/FlightGlobe.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getDatabase } from "../../lib/db/client";
+import { getFlightArchiveData } from "../../lib/db/public";
+import { GLOBE_ATTRIBUTION } from "../../lib/map/config";
+
+let data: Awaited<ReturnType<typeof getFlightArchiveData>> | null = null;
+try {
+  data = await getFlightArchiveData(getDatabase());
+} catch {
+  Astro.response.status = 503;
+}
+---
+
+<BaseLayout
+  title="Flights — Atlas"
+  description="Atlas 的航班档案：以三维大圆弧连接飞过的机场，按年度与国内/国际筛选。"
+  bodyClass="flight-space"
+  colorScheme="dark"
+>
+  {data ? (
+    <div class="flight-page">
+      <FlightGlobe airports={data.airports} flights={data.flights} years={data.years} />
+    </div>
+  ) : <DataFailure />}
+  <span class="footer-attribution" slot="footer-content">
+    <a href={GLOBE_ATTRIBUTION.href}>{GLOBE_ATTRIBUTION.label}</a><span> · </span><a href={GLOBE_ATTRIBUTION.libraryHref}>{GLOBE_ATTRIBUTION.libraryLabel}</a>
+  </span>
+</BaseLayout>

@@ -1,0 +1,22 @@
+---
+import FlightForm from "../../../components/admin/FlightForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listAircraftTypes } from "../../../lib/db/aircraft-types";
+import { listAirlines } from "../../../lib/db/airlines";
+import { listAirports } from "../../../lib/db/airports";
+import { listJourneys } from "../../../lib/db/journeys";
+
+const db = getDatabase();
+const [airlines, airports, aircraftTypes, journeys] = await Promise.all([
+  listAirlines(db),
+  listAirports(db),
+  listAircraftTypes(db),
+  listJourneys(db),
+]);
+---
+
+<AdminLayout title="New Flight">
+  <div class="admin-heading"><div><p class="eyebrow">FLIGHTS / NEW</p><h1>New Flight</h1></div></div>
+  <FlightForm airlines={airlines} airports={airports} aircraftTypes={aircraftTypes} journeys={journeys} />
+</AdminLayout>

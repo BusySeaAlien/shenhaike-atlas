@@ -14,8 +14,12 @@ const counts = await db.prepare(`
     (SELECT COUNT(*) FROM atlas_places) AS places,
     (SELECT COUNT(*) FROM atlas_journeys) AS journeys,
     (SELECT COUNT(*) FROM atlas_visits) AS visits,
-    (SELECT COUNT(*) FROM atlas_wishlist_items) AS wishlist
-`).first<{ places: number; journeys: number; visits: number; wishlist: number }>();
+    (SELECT COUNT(*) FROM atlas_wishlist_items) AS wishlist,
+    (SELECT COUNT(*) FROM atlas_flights) AS flights,
+    (SELECT COUNT(*) FROM atlas_airports) AS airports,
+    (SELECT COUNT(*) FROM atlas_airlines) AS airlines,
+    (SELECT COUNT(*) FROM atlas_aircraft_types) AS aircraft_types
+`).first<{ places: number; journeys: number; visits: number; wishlist: number; flights: number; airports: number; airlines: number; aircraft_types: number }>();
 const journeys = view === "journeys"
   ? (await listJourneys(db)).sort((a, b) => {
       const comparison = a.startDate.localeCompare(b.startDate);
@@ -35,8 +39,12 @@ const wishlist = view === "wishlist" ? await listWishlistItems(db) : [];
     <div class="metric"><dt>Journeys</dt><dd>{counts?.journeys ?? 0}</dd></div>
     <div class="metric"><dt>Visits</dt><dd>{counts?.visits ?? 0}</dd></div>
     <div class="metric"><dt>Wishlist</dt><dd>{counts?.wishlist ?? 0}</dd></div>
+    <div class="metric"><dt>Flights</dt><dd>{counts?.flights ?? 0}</dd></div>
+    <div class="metric"><dt>Airports</dt><dd>{counts?.airports ?? 0}</dd></div>
+    <div class="metric"><dt>Airlines</dt><dd>{counts?.airlines ?? 0}</dd></div>
+    <div class="metric"><dt>Aircraft Types</dt><dd>{counts?.aircraft_types ?? 0}</dd></div>
   </dl>
-  <div class="quick-actions"><a class="button" href="/guillaume/places/new/">+ New Place</a><a class="button secondary" href="/guillaume/journeys/new/">+ New Journey</a><a class="button secondary" href="/guillaume/wishlist/new/">+ New Wishlist Item</a></div>
+  <div class="quick-actions"><a class="button" href="/guillaume/places/new/">+ New Place</a><a class="button secondary" href="/guillaume/journeys/new/">+ New Journey</a><a class="button secondary" href="/guillaume/wishlist/new/">+ New Wishlist Item</a><a class="button secondary" href="/guillaume/flights/new/">+ New Flight</a><a class="button secondary" href="/guillaume/airports/new/">+ New Airport</a><a class="button secondary" href="/guillaume/airlines/new/">+ New Airline</a><a class="button secondary" href="/guillaume/aircraft-types/new/">+ New Aircraft Type</a></div>
   <section class="admin-section">
     <nav class="record-switcher" aria-label="Choose records to view">
       <a class:list={["button", { secondary: view !== "journeys" }]} href="/guillaume/?view=journeys" aria-current={view === "journeys" ? "page" : undefined}>Journeys</a>

@@ -1,0 +1,22 @@
+---
+import FlightForm from "../../../components/admin/FlightForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listAircraftTypes } from "../../../lib/db/aircraft-types";
+import { listAirlines } from "../../../lib/db/airlines";
+import { listAirports } from "../../../lib/db/airports";
+import { getFlightById } from "../../../lib/db/flights";
+import { listJourneys } from "../../../lib/db/journeys";
+
+const id = Number(Astro.params.id);
+const db = getDatabase();
+const flight = Number.isInteger(id) && id > 0 ? await getFlightById(db, id) : null;
+if (!flight) Astro.response.status = 404;
+const [airlines, airports, aircraftTypes, journeys] = flight
+  ? await Promise.all([listAirlines(db), listAirports(db), listAircraftTypes(db), listJourneys(db)])
+  : [[], [], [], []];
+---
+
+<AdminLayout title={flight ? `Edit flight` : "Flight not found"}>
+  {flight ? <><div class="admin-heading"><div><p class="eyebrow">FLIGHTS / EDIT</p><h1>Edit Flight</h1></div></div><FlightForm flight={flight} airlines={airlines} airports={airports} aircraftTypes={aircraftTypes} journeys={journeys} /></> : <p class="empty-admin">Flight not found.</p>}
+</AdminLayout>

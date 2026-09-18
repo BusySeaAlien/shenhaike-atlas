@@ -1,0 +1,385 @@
+---
+import type { AircraftType, Airline, Airport, CabinClass, Flight, Journey } from "../../types/domain";
+import { COUNTRY_OPTIONS } from "../../lib/countries";
+
+interface Props {
+  flight?: Flight;
+  airlines: Airline[];
+  airports: Airport[];
+  aircraftTypes: AircraftType[];
+  journeys: Journey[];
+}
+
+const { flight, airlines, airports, aircraftTypes, journeys } = Astro.props;
+const action = flight ? `/guillaume/api/flights/${flight.id}/` : "/guillaume/api/flights/";
+const method = flight ? "PATCH" : "POST";
+
+const CABIN_OPTIONS: Array<{ value: CabinClass; label: string }> = [
+  { value: "economy", label: "Economy" },
+  { value: "premium_economy", label: "Premium Economy" },
+  { value: "business", label: "Business" },
+  { value: "first", label: "First" },
+  { value: "other", label: "Other" },
+];
+
+const airportLabel = (airport: Airport) => `${airport.iataCode} · ${airport.nameZh || airport.name} · ${airport.city}`;
+const airlineLabel = (airline: Airline) => airline.nameZh ? `${airline.iataCode} · ${airline.nameZh} · ${airline.name}` : `${airline.iataCode} · ${airline.name}`;
+const aircraftLabel = (type: AircraftType) => `${type.icaoCode} · ${type.manufacturer} ${type.model}`;
+---
+
+<form class="admin-form" data-flight-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field">
+      <label for="airlineId">Airline *</label>
+      <select id="airlineId" name="airlineId" data-new-ref="airline" required>
+        <option value="" disabled selected={!flight?.airlineId}>请选择航司</option>
+        {airlines.map((airline) => <option value={airline.id} selected={flight?.airlineId === airline.id}>{airlineLabel(airline)}</option>)}
+        <option value="__new__">＋ 新建航司</option>
+      </select>
+      <span class="field-error" data-error="airlineId"></span>
+    </div>
+    <div class="field">
+      <label for="flightNumber">Flight number *</label>
+      <input id="flightNumber" name="flightNumber" inputmode="numeric" maxlength="6" placeholder="纯数字，如 5123" required value={flight?.flightNumber} />
+      <span class="field-error" data-error="flightNumber"></span>
+    </div>
+    <div class="field">
+      <label for="flightDate">Flight date *</label>
+      <input id="flightDate" name="flightDate" type="date" required value={flight?.flightDate} />
+      <span class="field-error" data-error="flightDate"></span>
+    </div>
+    <div class="field">
+      <label for="departureAirportId">Departure airport *</label>
+      <select id="departureAirportId" name="departureAirportId" data-new-ref="airport" required>
+        <option value="" disabled selected={!flight?.departureAirportId}>请选择出发机场</option>
+        {airports.map((airport) => <option value={airport.id} selected={flight?.departureAirportId === airport.id}>{airportLabel(airport)}</option>)}
+        <option value="__new__">＋ 新建机场</option>
+      </select>
+      <span class="field-error" data-error="departureAirportId"></span>
+    </div>
+    <div class="field">
+      <label for="arrivalAirportId">Arrival airport *</label>
+      <select id="arrivalAirportId" name="arrivalAirportId" data-new-ref="airport" required>
+        <option value="" disabled selected={!flight?.arrivalAirportId}>请选择到达机场</option>
+        {airports.map((airport) => <option value={airport.id} selected={flight?.arrivalAirportId === airport.id}>{airportLabel(airport)}</option>)}
+        <option value="__new__">＋ 新建机场</option>
+      </select>
+      <span class="field-error" data-error="arrivalAirportId"></span>
+    </div>
+    <div class="field">
+      <label for="journeyId">Journey</label>
+      <select id="journeyId" name="journeyId">
+        <option value="" selected={!flight?.journeyId}>— 无 —</option>
+        {journeys.map((journey) => <option value={journey.id} selected={flight?.journeyId === journey.id}>{journey.nameZh || journey.name}</option>)}
+      </select>
+      <span class="field-error" data-error="journeyId"></span>
+    </div>
+    <div class="field">
+      <label for="aircraftTypeId">Aircraft type</label>
+      <select id="aircraftTypeId" name="aircraftTypeId" data-new-ref="aircraft-type">
+        <option value="" selected={!flight?.aircraftTypeId}>— 无 —</option>
+        {aircraftTypes.map((type) => <option value={type.id} selected={flight?.aircraftTypeId === type.id}>{aircraftLabel(type)}</option>)}
+        <option value="__new__">＋ 新建机型</option>
+      </select>
+      <span class="field-error" data-error="aircraftTypeId"></span>
+    </div>
+    <div class="field">
+      <label for="aircraftRegistration">Aircraft registration</label>
+      <input id="aircraftRegistration" name="aircraftRegistration" maxlength="20" value={flight?.aircraftRegistration ?? ""} />
+      <span class="field-error" data-error="aircraftRegistration"></span>
+    </div>
+    <div class="field">
+      <label for="scheduledDepartureLocal">Scheduled departure (local)</label>
+      <input id="scheduledDepartureLocal" name="scheduledDepartureLocal" placeholder="YYYY-MM-DDTHH:mm" value={flight?.scheduledDepartureLocal ?? ""} />
+      <span class="field-error" data-error="scheduledDepartureLocal"></span>
+    </div>
+    <div class="field">
+      <label for="scheduledArrivalLocal">Scheduled arrival (local)</label>
+      <input id="scheduledArrivalLocal" name="scheduledArrivalLocal" placeholder="YYYY-MM-DDTHH:mm" value={flight?.scheduledArrivalLocal ?? ""} />
+      <span class="field-error" data-error="scheduledArrivalLocal"></span>
+    </div>
+    <div class="field">
+      <label for="cabinClass">Cabin class</label>
+      <select id="cabinClass" name="cabinClass">
+        <option value="" selected={!flight?.cabinClass}>— 无 —</option>
+        {CABIN_OPTIONS.map((option) => <option value={option.value} selected={flight?.cabinClass === option.value}>{option.label}</option>)}
+      </select>
+      <span class="field-error" data-error="cabinClass"></span>
+    </div>
+    <div class="field">
+      <label for="seatNumber">Seat number</label>
+      <input id="seatNumber" name="seatNumber" maxlength="10" value={flight?.seatNumber ?? ""} />
+      <span class="field-error" data-error="seatNumber"></span>
+    </div>
+    <div class="field wide">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes">{flight?.notes ?? ""}</textarea>
+      <span class="field-error" data-error="notes"></span>
+    </div>
+  </div>
+  <div class="form-actions"><button type="submit">{flight ? "Save flight" : "Create flight"}</button><a class="button secondary" href="/guillaume/flights/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  flight && (
+    <div class="danger-zone">
+      <p>删除航班不会删除机场、航司或机型。</p>
+      <button class="danger" type="button" data-delete-flight data-action={`/guillaume/api/flights/${flight.id}/`}>Delete flight</button>
+    </div>
+  )
+}
+
+<dialog id="flight-new-airport" class="ref-dialog">
+  <form novalidate data-inline-form="airport">
+    <h2>新建机场</h2>
+    <div class="field-grid">
+      <div class="field"><label for="new-airport-iata">IATA code *</label><input id="new-airport-iata" name="iataCode" maxlength="3" required /><span class="field-error" data-error="iataCode"></span></div>
+      <div class="field"><label for="new-airport-icao">ICAO code</label><input id="new-airport-icao" name="icaoCode" maxlength="4" /><span class="field-error" data-error="icaoCode"></span></div>
+      <div class="field"><label for="new-airport-name">English name *</label><input id="new-airport-name" name="name" required /><span class="field-error" data-error="name"></span></div>
+      <div class="field"><label for="new-airport-namezh">中文名</label><input id="new-airport-namezh" name="nameZh" /><span class="field-error" data-error="nameZh"></span></div>
+      <div class="field"><label for="new-airport-city">City *</label><input id="new-airport-city" name="city" required /><span class="field-error" data-error="city"></span></div>
+      <div class="field"><label for="new-airport-cityzh">中文城市</label><input id="new-airport-cityzh" name="cityZh" /><span class="field-error" data-error="cityZh"></span></div>
+      <div class="field"><label for="new-airport-country">Country *</label><select id="new-airport-country" name="country" required><option value="" disabled selected>请选择国家</option>{COUNTRY_OPTIONS.map((country) => <option value={country.name}>{country.nameZh}（{country.name}）</option>)}</select><span class="field-error" data-error="country"></span></div>
+      <div class="field"><label for="new-airport-region">Region</label><input id="new-airport-region" name="region" /><span class="field-error" data-error="region"></span></div>
+      <div class="field"><label for="new-airport-lat">Latitude *</label><input id="new-airport-lat" name="latitude" type="number" step="any" required /><span class="field-error" data-error="latitude"></span></div>
+      <div class="field"><label for="new-airport-lng">Longitude *</label><input id="new-airport-lng" name="longitude" type="number" step="any" required /><span class="field-error" data-error="longitude"></span></div>
+      <div class="field"><label for="new-airport-tz">Timezone *</label><input id="new-airport-tz" name="timezone" placeholder="Asia/Shanghai" required /><span class="field-error" data-error="timezone"></span></div>
+      <div class="field"><label for="new-airport-elev">Elevation (ft)</label><input id="new-airport-elev" name="elevationFt" type="number" step="1" /><span class="field-error" data-error="elevationFt"></span></div>
+      <div class="field wide"><label for="new-airport-notes">Notes</label><textarea id="new-airport-notes" name="notes"></textarea><span class="field-error" data-error="notes"></span></div>
+    </div>
+    <div class="form-actions"><button type="submit" data-dialog-submit>Create airport</button><button class="secondary" type="button" data-dialog-close>Cancel</button><span class="form-status" role="status"></span></div>
+  </form>
+</dialog>
+
+<dialog id="flight-new-airline" class="ref-dialog">
+  <form novalidate data-inline-form="airline">
+    <h2>新建航司</h2>
+    <div class="field-grid">
+      <div class="field"><label for="new-airline-iata">IATA code *</label><input id="new-airline-iata" name="iataCode" maxlength="2" required /><span class="field-error" data-error="iataCode"></span></div>
+      <div class="field"><label for="new-airline-icao">ICAO code</label><input id="new-airline-icao" name="icaoCode" maxlength="3" /><span class="field-error" data-error="icaoCode"></span></div>
+      <div class="field"><label for="new-airline-name">English name *</label><input id="new-airline-name" name="name" required /><span class="field-error" data-error="name"></span></div>
+      <div class="field"><label for="new-airline-namezh">中文名</label><input id="new-airline-namezh" name="nameZh" /><span class="field-error" data-error="nameZh"></span></div>
+      <div class="field"><label for="new-airline-country">Country *</label><select id="new-airline-country" name="country" required><option value="" disabled selected>请选择国家</option>{COUNTRY_OPTIONS.map((country) => <option value={country.name}>{country.nameZh}（{country.name}）</option>)}</select><span class="field-error" data-error="country"></span></div>
+      <div class="field"><label for="new-airline-callsign">Callsign</label><input id="new-airline-callsign" name="callsign" /><span class="field-error" data-error="callsign"></span></div>
+      <div class="field wide"><label for="new-airline-notes">Notes</label><textarea id="new-airline-notes" name="notes"></textarea><span class="field-error" data-error="notes"></span></div>
+    </div>
+    <div class="form-actions"><button type="submit" data-dialog-submit>Create airline</button><button class="secondary" type="button" data-dialog-close>Cancel</button><span class="form-status" role="status"></span></div>
+  </form>
+</dialog>
+
+<dialog id="flight-new-aircraft" class="ref-dialog">
+  <form novalidate data-inline-form="aircraft-type">
+    <h2>新建机型</h2>
+    <div class="field-grid">
+      <div class="field"><label for="new-aircraft-icao">ICAO type designator *</label><input id="new-aircraft-icao" name="icaoCode" maxlength="4" required /><span class="field-error" data-error="icaoCode"></span></div>
+      <div class="field"><label for="new-aircraft-manufacturer">Manufacturer *</label><input id="new-aircraft-manufacturer" name="manufacturer" required /><span class="field-error" data-error="manufacturer"></span></div>
+      <div class="field"><label for="new-aircraft-model">Model *</label><input id="new-aircraft-model" name="model" required /><span class="field-error" data-error="model"></span></div>
+      <div class="field"><label for="new-aircraft-modelzh">中文型号</label><input id="new-aircraft-modelzh" name="modelZh" /><span class="field-error" data-error="modelZh"></span></div>
+      <div class="field wide"><label for="new-aircraft-notes">Notes</label><textarea id="new-aircraft-notes" name="notes"></textarea><span class="field-error" data-error="notes"></span></div>
+    </div>
+    <div class="form-actions"><button type="submit" data-dialog-submit>Create aircraft type</button><button class="secondary" type="button" data-dialog-close>Cancel</button><span class="form-status" role="status"></span></div>
+  </form>
+</dialog>
+
+<script>
+  interface ApiResult { data?: Record<string, any>; error?: { message?: string; fields?: Record<string, string> } }
+
+  const airportLabel = (airport: Record<string, any>) => `${airport.iataCode} · ${airport.nameZh || airport.name} · ${airport.city}`;
+  const airlineLabel = (airline: Record<string, any>) => airline.nameZh ? `${airline.iataCode} · ${airline.nameZh} · ${airline.name}` : `${airline.iataCode} · ${airline.name}`;
+  const aircraftLabel = (type: Record<string, any>) => `${type.icaoCode} · ${type.manufacturer} ${type.model}`;
+
+  const numberOrNull = (value: FormDataEntryValue | null): number | null => {
+    const text = typeof value === "string" ? value.trim() : "";
+    return text ? Number(text) : null;
+  };
+
+  // ---- Main form submit ----
+  const form = document.querySelector<HTMLFormElement>("[data-flight-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const optionalId = (value: FormDataEntryValue | null): number | null => {
+      const text = typeof value === "string" ? value.trim() : "";
+      return text ? Number(text) : null;
+    };
+    const payload = {
+      airlineId: Number(data.get("airlineId")),
+      flightNumber: data.get("flightNumber"),
+      flightDate: data.get("flightDate"),
+      departureAirportId: Number(data.get("departureAirportId")),
+      arrivalAirportId: Number(data.get("arrivalAirportId")),
+      journeyId: optionalId(data.get("journeyId")),
+      aircraftTypeId: optionalId(data.get("aircraftTypeId")),
+      aircraftRegistration: data.get("aircraftRegistration"),
+      scheduledDepartureLocal: data.get("scheduledDepartureLocal"),
+      scheduledArrivalLocal: data.get("scheduledArrivalLocal"),
+      cabinClass: data.get("cabinClass"),
+      seatNumber: data.get("seatNumber"),
+      notes: data.get("notes"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign(result.data ? `/guillaume/flights/${result.data.id}/` : "/guillaume/flights/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-flight]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this flight? This cannot be undone.")) return;
+    button.disabled = true;
+    const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+    const result = await response.json() as ApiResult;
+    if (response.ok) window.location.assign("/guillaume/flights/");
+    else { window.alert(result.error?.message ?? "Delete failed"); button.disabled = false; }
+  });
+
+  // ---- Inline create dialogs (handoff §9.1) ----
+  interface InlineConfig {
+    dialog: HTMLDialogElement;
+    endpoint: string;
+    buildPayload: (data: FormData) => Record<string, unknown>;
+    labelOf: (record: Record<string, any>) => string;
+  }
+
+  function wireCreateDialog({ dialog, endpoint, buildPayload, labelOf }: InlineConfig) {
+    const dialogForm = dialog.querySelector<HTMLFormElement>("form")!;
+    const previous = new Map<HTMLSelectElement, string>();
+    let activeSelect: HTMLSelectElement | null = null;
+
+    const resetDialog = () => {
+      dialogForm.reset();
+      dialogForm.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+      const status = dialogForm.querySelector<HTMLElement>(".form-status");
+      if (status) status.textContent = "";
+      dialogForm.querySelector<HTMLButtonElement>("[data-dialog-submit]")?.removeAttribute("disabled");
+    };
+
+    const restore = () => {
+      if (!activeSelect) return;
+      const value = previous.get(activeSelect) ?? "";
+      activeSelect.value = activeSelect.querySelector(`option[value="${value}"]`) ? value : "";
+    };
+
+    dialog.addEventListener("close", () => {
+      if (activeSelect && activeSelect.value === "__new__") restore();
+      activeSelect?.focus();
+    });
+
+    dialogForm.querySelector<HTMLButtonElement>("[data-dialog-close]")?.addEventListener("click", () => dialog.close());
+
+    dialogForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const submit = dialogForm.querySelector<HTMLButtonElement>("[data-dialog-submit]");
+      const status = dialogForm.querySelector<HTMLElement>(".form-status");
+      dialogForm.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+      if (submit) submit.disabled = true;
+      if (status) status.textContent = "Saving…";
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(buildPayload(new FormData(dialogForm))),
+        });
+        const result = await response.json() as ApiResult;
+        if (!response.ok) {
+          for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+            const target = dialogForm.querySelector<HTMLElement>(`[data-error="${field}"]`);
+            if (target) target.textContent = String(message);
+          }
+          throw new Error(result.error?.message ?? "Create failed");
+        }
+        const created = result.data!;
+        const option = document.createElement("option");
+        option.value = String(created.id);
+        option.textContent = labelOf(created);
+        if (activeSelect) {
+          activeSelect.insertBefore(option, activeSelect.querySelector('option[value="__new__"]'));
+          activeSelect.value = String(created.id);
+          previous.set(activeSelect, String(created.id));
+        }
+        dialog.close();
+      } catch (error) {
+        if (status) status.textContent = error instanceof Error ? error.message : "Create failed";
+        if (submit) submit.disabled = false;
+      }
+    });
+
+    return {
+      attach(select: HTMLSelectElement) {
+        previous.set(select, select.value);
+        select.addEventListener("change", () => {
+          if (select.value === "__new__") {
+            activeSelect = select;
+            resetDialog();
+            dialog.showModal();
+          } else {
+            previous.set(select, select.value);
+          }
+        });
+      },
+    };
+  }
+
+  const airportCreate = wireCreateDialog({
+    dialog: document.querySelector<HTMLDialogElement>("#flight-new-airport")!,
+    endpoint: "/guillaume/api/airports/",
+    buildPayload: (data) => ({
+      iataCode: data.get("iataCode"), icaoCode: data.get("icaoCode"),
+      name: data.get("name"), nameZh: data.get("nameZh"),
+      city: data.get("city"), cityZh: data.get("cityZh"),
+      country: data.get("country"), region: data.get("region"),
+      latitude: numberOrNull(data.get("latitude")), longitude: numberOrNull(data.get("longitude")),
+      timezone: data.get("timezone"), elevationFt: numberOrNull(data.get("elevationFt")),
+      notes: data.get("notes"),
+    }),
+    labelOf: airportLabel,
+  });
+  const airlineCreate = wireCreateDialog({
+    dialog: document.querySelector<HTMLDialogElement>("#flight-new-airline")!,
+    endpoint: "/guillaume/api/airlines/",
+    buildPayload: (data) => ({
+      iataCode: data.get("iataCode"), icaoCode: data.get("icaoCode"),
+      name: data.get("name"), nameZh: data.get("nameZh"),
+      country: data.get("country"), callsign: data.get("callsign"), notes: data.get("notes"),
+    }),
+    labelOf: airlineLabel,
+  });
+  const aircraftCreate = wireCreateDialog({
+    dialog: document.querySelector<HTMLDialogElement>("#flight-new-aircraft")!,
+    endpoint: "/guillaume/api/aircraft-types/",
+    buildPayload: (data) => ({
+      icaoCode: data.get("icaoCode"), manufacturer: data.get("manufacturer"),
+      model: data.get("model"), modelZh: data.get("modelZh"), notes: data.get("notes"),
+    }),
+    labelOf: aircraftLabel,
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-new-ref]").forEach((element) => {
+    const select = element as unknown as HTMLSelectElement;
+    const kind = select.dataset.newRef;
+    if (kind === "airport") airportCreate.attach(select);
+    else if (kind === "airline") airlineCreate.attach(select);
+    else if (kind === "aircraft-type") aircraftCreate.attach(select);
+  });
+</script>

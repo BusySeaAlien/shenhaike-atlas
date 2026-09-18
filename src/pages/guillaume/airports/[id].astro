@@ -1,0 +1,14 @@
+---
+import AirportForm from "../../../components/admin/AirportForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { getAirportById } from "../../../lib/db/airports";
+
+const id = Number(Astro.params.id);
+const airport = Number.isInteger(id) && id > 0 ? await getAirportById(getDatabase(), id) : null;
+if (!airport) Astro.response.status = 404;
+---
+
+<AdminLayout title={airport ? `Edit ${airport.iataCode}` : "Airport not found"}>
+  {airport ? <><div class="admin-heading"><div><p class="eyebrow">AIRPORTS / EDIT</p><h1>{airport.nameZh || airport.name}</h1></div></div><AirportForm airport={airport} /></> : <p class="empty-admin">Airport not found.</p>}
+</AdminLayout>

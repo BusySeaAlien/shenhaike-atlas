@@ -170,7 +170,154 @@ try {
   );
   if (orphan?.count !== 0) throw new Error("Journey deletion left orphan visits.");
 
-  process.stdout.write("Database verification passed: empty migration, seed, constraints, repeats, cascades, and wishlist.\n");
+  // --- Flight archive (Flight handoff §13.4) ---
+  const flightTables = firstRow(
+    execute(`
+      SELECT COUNT(*) AS count FROM sqlite_master
+      WHERE type = 'table' AND name IN ('atlas_airports', 'atlas_airlines', 'atlas_aircraft_types', 'atlas_flights')
+    `),
+  );
+  if (flightTables?.count !== 4) throw new Error("Flight archive tables are missing.");
+
+  const flightIndexes = firstRow(
+    execute(`
+      SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name IN (
+        'atlas_airports_country_idx', 'atlas_airports_name_idx',
+        'atlas_flights_date_idx', 'atlas_flights_type_date_idx', 'atlas_flights_airline_idx',
+        'atlas_flights_aircraft_idx', 'atlas_flights_departure_idx', 'atlas_flights_arrival_idx',
+        'atlas_flights_journey_idx'
+      )
+    `),
+  );
+  if (flightIndexes?.count !== 9) throw new Error("Flight archive indexes are missing.");
+
+  execute(`
+    INSERT INTO atlas_airports (iata_code, icao_code, name, city, country, country_code, latitude, longitude, timezone)
+    VALUES
+      ('PVG', 'ZSPD', 'Shanghai Pudong International Airport', 'Shanghai', 'China', 'CHN', 31.1443, 121.8083, 'Asia/Shanghai'),
+      ('PEK', 'ZBAA', 'Beijing Capital International Airport', 'Beijing', 'China', 'CHN', 40.0799, 116.6031, 'Asia/Shanghai'),
+      ('HKG', 'VHHH', 'Hong Kong International Airport', 'Hong Kong', 'Hong Kong', 'HKG', 22.308, 113.9185, 'Asia/Hong_Kong'),
+      ('CDG', 'LFPG', 'Paris Charles de Gaulle Airport', 'Paris', 'France', 'FRA', 49.0097, 2.5479, 'Europe/Paris');
+
+    INSERT INTO atlas_airlines (iata_code, icao_code, name, country, country_code)
+    VALUES ('MU', 'CES', 'China Eastern Airlines', 'China', 'CHN'),
+           ('AF', 'AFR', 'Air France', 'France', 'FRA');
+
+    INSERT INTO atlas_aircraft_types (icao_code, manufacturer, model)
+    VALUES ('A320', 'Airbus', 'A320-200'),
+           ('B77W', 'Boeing', '777-300ER');
+  `);
+
+  execute(`
+    INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic)
+    VALUES (
+      (SELECT id FROM atlas_airlines WHERE iata_code = 'MU'),
+      '5123', '2026-08-14',
+      (SELECT id FROM atlas_airports WHERE iata_code = 'PVG'),
+      (SELECT id FROM atlas_airports WHERE iata_code = 'PEK'),
+      1099.4, 1.08, 1187.3, 1.7, 1
+    );
+    INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic)
+    VALUES (
+      (SELECT id FROM atlas_airlines WHERE iata_code = 'MU'),
+      '5124', '2026-08-15',
+      (SELECT id FROM atlas_airports WHERE iata_code = 'PVG'),
+      (SELECT id FROM atlas_airports WHERE iata_code = 'HKG'),
+      1234.5, 1.08, 1333.3, 2.1, 0
+    );
+  `);
+
+  const flightCounts = firstRow(
+    execute(`
+      SELECT
+        SUM(CASE WHEN is_domestic = 1 THEN 1 ELSE 0 END) AS domestic,
+        SUM(CASE WHEN is_domestic = 0 THEN 1 ELSE 0 END) AS international,
+        COUNT(*) AS total
+      FROM atlas_flights
+    `),
+  );
+  if (flightCounts?.domestic !== 1 || flightCounts?.international !== 1 || flightCounts?.total !== 2) {
+    throw new Error(`Unexpected domestic/international split: ${JSON.stringify(flightCounts)}`);
+  }
+
+  expectFailure(
+    "duplicate airport IATA",
+    `INSERT INTO atlas_airports (iata_code, name, city, country, country_code, latitude, longitude, timezone)
+     VALUES ('PVG', 'Duplicate', 'Shanghai', 'China', 'CHN', 1, 1, 'Asia/Shanghai')`,
+  );
+  expectFailure(
+    "flight number with letters",
+    `INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic)
+     VALUES (1, 'MU123', '2026-08-16', 1, 2, 100, 1.08, 108, 0.5, 1)`,
+  );
+  expectFailure(
+    "same departure and arrival airport",
+    `INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic)
+     VALUES (1, '9999', '2026-08-16', 1, 1, 100, 1.08, 108, 0.5, 1)`,
+  );
+  expectFailure(
+    "invalid cabin class",
+    `INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic, cabin_class)
+     VALUES (1, '9998', '2026-08-16', 1, 2, 100, 1.08, 108, 0.5, 1, 'royal')`,
+  );
+  expectFailure(
+    "non-positive great circle distance",
+    `INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic)
+     VALUES (1, '9997', '2026-08-16', 1, 2, 0, 1.08, 108, 0.5, 1)`,
+  );
+  expectFailure(
+    "duplicate flight unique combination",
+    `INSERT INTO atlas_flights (airline_id, flight_number, flight_date, departure_airport_id, arrival_airport_id, great_circle_km, route_factor, route_distance_km, estimated_hours, is_domestic)
+     VALUES (
+       (SELECT id FROM atlas_airlines WHERE iata_code = 'MU'),
+       '5123', '2026-08-14',
+       (SELECT id FROM atlas_airports WHERE iata_code = 'PVG'),
+       (SELECT id FROM atlas_airports WHERE iata_code = 'PEK'),
+       1099.4, 1.08, 1187.3, 1.7, 1
+     )`,
+  );
+  expectFailure(
+    "referenced airport deletion",
+    `DELETE FROM atlas_airports WHERE iata_code = 'PVG'`,
+  );
+  expectFailure(
+    "referenced airline deletion",
+    `DELETE FROM atlas_airlines WHERE iata_code = 'MU'`,
+  );
+
+  execute(`
+    UPDATE atlas_flights SET aircraft_type_id = (SELECT id FROM atlas_aircraft_types WHERE icao_code = 'A320') WHERE flight_number = '5123';
+  `);
+  expectFailure(
+    "referenced aircraft type deletion",
+    `DELETE FROM atlas_aircraft_types WHERE icao_code = 'A320'`,
+  );
+
+  execute(`
+    INSERT INTO atlas_journeys (slug, name, start_date, end_date)
+    VALUES ('flight-journey', 'Flight Journey', '2026-08-14', '2026-08-15');
+    UPDATE atlas_flights SET journey_id = (SELECT id FROM atlas_journeys WHERE slug = 'flight-journey') WHERE flight_number = '5123';
+    DELETE FROM atlas_journeys WHERE slug = 'flight-journey';
+  `);
+  const nulledJourney = firstRow(
+    execute(`SELECT journey_id FROM atlas_flights WHERE flight_number = '5123'`),
+  );
+  if (nulledJourney?.journey_id !== null) throw new Error("Journey deletion did not null the flight's journey_id.");
+
+  execute(`DELETE FROM atlas_flights WHERE flight_number = '5124'`);
+  const survivors = firstRow(
+    execute(`
+      SELECT
+        (SELECT COUNT(*) FROM atlas_airports WHERE iata_code = 'HKG') AS airport,
+        (SELECT COUNT(*) FROM atlas_airlines WHERE iata_code = 'MU') AS airline,
+        (SELECT COUNT(*) FROM atlas_aircraft_types WHERE icao_code = 'A320') AS aircraft
+    `),
+  );
+  if (survivors?.airport !== 1 || survivors?.airline !== 1 || survivors?.aircraft !== 1) {
+    throw new Error("Flight deletion cascaded into the reference tables.");
+  }
+
+  process.stdout.write("Database verification passed: core archive, constraints, wishlist, and flight archive.\n");
 } finally {
   if (stateDirectory.startsWith(tmpdir()) && stateDirectory.includes("atlas-d1-")) {
     rmSync(stateDirectory, { recursive: true, force: true });

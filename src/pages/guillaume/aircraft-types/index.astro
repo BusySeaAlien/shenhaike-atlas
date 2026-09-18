@@ -1,0 +1,12 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listAircraftTypes } from "../../../lib/db/aircraft-types";
+
+const aircraftTypes = await listAircraftTypes(getDatabase());
+---
+
+<AdminLayout title="Aircraft Types">
+  <div class="admin-heading"><div><p class="eyebrow">FLIGHT ARCHIVE / AIRCRAFT TYPES</p><h1>Aircraft Types</h1></div><a class="button" href="/guillaume/aircraft-types/new/">+ New Aircraft Type</a></div>
+  {aircraftTypes.length ? <table class="data-table"><thead><tr><th>ICAO</th><th>Aircraft type</th><th>Manufacturer</th><th>Updated</th></tr></thead><tbody>{aircraftTypes.map((type) => <tr><td><a href={`/guillaume/aircraft-types/${type.id}/`}>{type.icaoCode}</a></td><td>{type.modelZh || type.model}{type.modelZh && <><br /><small>{type.model}</small></>}</td><td>{type.manufacturer}</td><td>{type.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No aircraft types yet.</p>}
+</AdminLayout>

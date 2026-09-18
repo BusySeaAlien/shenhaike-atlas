@@ -1,4 +1,7 @@
 import type {
+  FlightArchiveAirport,
+  FlightArchiveData,
+  FlightArchiveRoute,
   HomeData,
   Journey,
   JourneySummary,
@@ -347,4 +350,160 @@ export async function listTimeline(db: D1Database): Promise<TimelineVisit[]> {
     journeyName: row.journey_name,
     journeyNameZh: row.journey_name_zh,
   }));
+}
+
+interface FlightArchiveRow {
+  id: number;
+  flight_number: string;
+  flight_date: string;
+  is_domestic: number;
+  great_circle_km: number;
+  route_distance_km: number;
+  estimated_hours: number;
+  airline_iata: string;
+  airline_name: string;
+  airline_name_zh: string | null;
+  aircraft_icao: string | null;
+  aircraft_manufacturer: string | null;
+  aircraft_model: string | null;
+  dep_id: number;
+  dep_iata: string;
+  dep_name: string;
+  dep_name_zh: string | null;
+  dep_city: string;
+  dep_city_zh: string | null;
+  dep_country: string;
+  dep_country_code: string;
+  dep_latitude: number;
+  dep_longitude: number;
+  arr_id: number;
+  arr_iata: string;
+  arr_name: string;
+  arr_name_zh: string | null;
+  arr_city: string;
+  arr_city_zh: string | null;
+  arr_country: string;
+  arr_country_code: string;
+  arr_latitude: number;
+  arr_longitude: number;
+  journey_name: string | null;
+  journey_name_zh: string | null;
+}
+
+function toArchiveAirport(
+  id: number,
+  iataCode: string,
+  name: string,
+  nameZh: string | null,
+  city: string,
+  cityZh: string | null,
+  country: string,
+  countryCode: string,
+  latitude: number,
+  longitude: number,
+): FlightArchiveAirport {
+  return {
+    id: String(id),
+    iataCode,
+    name,
+    nameZh,
+    city,
+    cityZh,
+    country,
+    countryCode,
+    latitude,
+    longitude,
+  };
+}
+
+/**
+ * The public `/flight/` payload (handoff §6/§10). One JOIN pulls every Flight
+ * with its airline, both airports, optional aircraft type and optional journey;
+ * no per-flight follow-up queries. Airport payload is de-duplicated by id from
+ * the flights that are present, and years are the flight dates' first four
+ * digits in descending order.
+ */
+export async function getFlightArchiveData(db: D1Database): Promise<FlightArchiveData> {
+  const { results } = await db.prepare(`
+    SELECT f.id, f.flight_number, f.flight_date, f.is_domestic,
+      f.great_circle_km, f.route_distance_km, f.estimated_hours,
+      al.iata_code AS airline_iata, al.name AS airline_name, al.name_zh AS airline_name_zh,
+      ac.icao_code AS aircraft_icao, ac.manufacturer AS aircraft_manufacturer, ac.model AS aircraft_model,
+      dep.id AS dep_id, dep.iata_code AS dep_iata, dep.name AS dep_name, dep.name_zh AS dep_name_zh,
+      dep.city AS dep_city, dep.city_zh AS dep_city_zh, dep.country AS dep_country, dep.country_code AS dep_country_code,
+      dep.latitude AS dep_latitude, dep.longitude AS dep_longitude,
+      arr.id AS arr_id, arr.iata_code AS arr_iata, arr.name AS arr_name, arr.name_zh AS arr_name_zh,
+      arr.city AS arr_city, arr.city_zh AS arr_city_zh, arr.country AS arr_country, arr.country_code AS arr_country_code,
+      arr.latitude AS arr_latitude, arr.longitude AS arr_longitude,
+      j.name AS journey_name, j.name_zh AS journey_name_zh
+    FROM atlas_flights f
+    INNER JOIN atlas_airlines al ON al.id = f.airline_id
+    INNER JOIN atlas_airports dep ON dep.id = f.departure_airport_id
+    INNER JOIN atlas_airports arr ON arr.id = f.arrival_airport_id
+    LEFT JOIN atlas_aircraft_types ac ON ac.id = f.aircraft_type_id
+    LEFT JOIN atlas_journeys j ON j.id = f.journey_id
+    ORDER BY f.flight_date DESC, f.id DESC
+  `).all<FlightArchiveRow>();
+
+  const airportMap = new Map<number, FlightArchiveAirport>();
+  const years = new Set<string>();
+  const flights: FlightArchiveRoute[] = results.map((row) => {
+    years.add(row.flight_date.slice(0, 4));
+
+    const departure = airportMap.get(row.dep_id) ?? toArchiveAirport(
+      row.dep_id,
+      row.dep_iata,
+      row.dep_name,
+      row.dep_name_zh,
+      row.dep_city,
+      row.dep_city_zh,
+      row.dep_country,
+      row.dep_country_code,
+      row.dep_latitude,
+      row.dep_longitude,
+    );
+    airportMap.set(row.dep_id, departure);
+
+    const arrival = airportMap.get(row.arr_id) ?? toArchiveAirport(
+      row.arr_id,
+      row.arr_iata,
+      row.arr_name,
+      row.arr_name_zh,
+      row.arr_city,
+      row.arr_city_zh,
+      row.arr_country,
+      row.arr_country_code,
+      row.arr_latitude,
+      row.arr_longitude,
+    );
+    airportMap.set(row.arr_id, arrival);
+
+    const aircraftLabel = row.aircraft_icao
+      ? `${row.aircraft_icao} · ${[row.aircraft_manufacturer, row.aircraft_model].filter(Boolean).join(" ")}`
+      : null;
+
+    return {
+      id: String(row.id),
+      displayNumber: `${row.airline_iata}${row.flight_number}`,
+      flightDate: row.flight_date,
+      year: row.flight_date.slice(0, 4),
+      isDomestic: row.is_domestic === 1,
+      airlineName: row.airline_name,
+      airlineNameZh: row.airline_name_zh,
+      aircraftLabel,
+      departure,
+      arrival,
+      journeyName: row.journey_name,
+      journeyNameZh: row.journey_name_zh,
+      greatCircleKm: row.great_circle_km,
+      routeDistanceKm: row.route_distance_km,
+      estimatedHours: row.estimated_hours,
+    };
+  });
+
+  return {
+    airports: [...airportMap.values()],
+    flights,
+    years: [...years].sort((a, b) => b.localeCompare(a)),
+  };
 }

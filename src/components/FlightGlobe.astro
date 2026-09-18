@@ -1,0 +1,521 @@
+---
+import "maplibre-gl/dist/maplibre-gl.css";
+import type { FlightArchiveAirport, FlightArchiveRoute } from "../types/domain";
+import { formatFlightDuration } from "../lib/flight-math";
+
+interface Props {
+  airports: FlightArchiveAirport[];
+  flights: FlightArchiveRoute[];
+  years: string[];
+}
+
+const { airports, flights, years } = Astro.props;
+
+const totalFlights = flights.length;
+const totalDistance = flights.reduce((sum, flight) => sum + flight.routeDistanceKm, 0);
+const totalHours = flights.reduce((sum, flight) => sum + flight.estimatedHours, 0);
+const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\u003c");
+---
+
+<section class="flight-globe" data-flight-globe>
+  <header class="flight-heading">
+    <div>
+      <p class="eyebrow">ATLAS / FLIGHT ARCHIVE</p>
+      <h1>Flights,<br />across the sky.</h1>
+    </div>
+    <p>每一条航段，都以高于地表的大圆弧相连。按年度或国内/国际筛选。</p>
+  </header>
+
+  {flights.length ? (
+    <>
+      <div class="flight-toolbar" aria-label="Flight filters">
+        <label data-flight-year-selector>
+          <span>Year</span>
+          <select data-flight-year aria-label="Filter flights by year">
+            <option value="">All time</option>
+            {years.map((year) => <option value={year}>{year}</option>)}
+          </select>
+        </label>
+        <div class="globe-mode" role="group" aria-label="Flight type">
+          <button type="button" class="is-active" aria-pressed="true" data-flight-type="all">All</button>
+          <button type="button" aria-pressed="false" data-flight-type="domestic">Domestic</button>
+          <button type="button" aria-pressed="false" data-flight-type="international">International</button>
+        </div>
+      </div>
+
+      <div class="globe-stage">
+        <div class="globe-canvas" data-flight-canvas role="region" aria-label="Rotating globe of flights" tabindex="0"></div>
+        <p class="map-runtime-status" data-flight-status aria-live="polite">Loading the globe. The flight list below remains available.</p>
+        <div class="flight-hover-tip" data-flight-hover hidden aria-hidden="true"></div>
+        <div class="globe-orbit-label" aria-hidden="true"><span>E</span><i></i><span>W</span></div>
+      </div>
+
+      <section class="stats flight-stats" aria-label="Flight statistics" data-flight-stats>
+        <div><strong data-stat-value="flights">{totalFlights}</strong><span>Flights</span></div>
+        <div><strong data-stat-value="airports">{airports.length}</strong><span>Airports</span></div>
+        <div><strong data-stat-value="distance">{Math.round(totalDistance).toLocaleString()}</strong><span>Distance (km)</span></div>
+        <div><strong data-stat-value="time">{formatFlightDuration(totalHours)}</strong><span>Estimated Time</span></div>
+      </section>
+
+      <section class="flight-list-section" aria-labelledby="flight-list-title">
+        <header class="section-heading">
+          <div><p class="eyebrow">FILTERED FLIGHTS</p><h2 id="flight-list-title" data-flight-results-title>{totalFlights} flights · All</h2></div>
+        </header>
+        <ol class="flight-list">
+          {flights.map((flight) => (
+            <li data-flight-item data-flight-id={flight.id} data-year={flight.year} data-domestic={flight.isDomestic ? "1" : "0"}>
+              <time datetime={flight.flightDate}>{flight.flightDate}</time>
+              <div class="flight-number">
+                <strong>{flight.displayNumber}</strong>
+                <small>{flight.airlineNameZh || flight.airlineName}{flight.airlineNameZh ? ` · ${flight.airlineName}` : ""}</small>
+              </div>
+              <div class="flight-route">
+                <span>{flight.departure.iataCode} · {flight.departure.nameZh || flight.departure.name} · {flight.departure.cityZh || flight.departure.city}</span>
+                <i aria-hidden="true">→</i>
+                <span>{flight.arrival.iataCode} · {flight.arrival.nameZh || flight.arrival.name} · {flight.arrival.cityZh || flight.arrival.city}</span>
+              </div>
+              <span class="flight-type">{flight.isDomestic ? "Domestic" : "International"}</span>
+              <span class="flight-meta">{flight.aircraftLabel ?? "—"}</span>
+              <span class="flight-meta">{Math.round(flight.routeDistanceKm)} km · {formatFlightDuration(flight.estimatedHours)}</span>
+              {flight.journeyName && <span class="flight-journey">{flight.journeyNameZh || flight.journeyName}</span>}
+            </li>
+          ))}
+        </ol>
+        <p class="globe-results-empty" data-flight-empty hidden>No flights match this filter.</p>
+      </section>
+
+      <noscript>
+        <div class="globe-noscript">
+          <p>JavaScript is unavailable. The interactive globe and filters need JavaScript; the full flight list is shown above.</p>
+        </div>
+      </noscript>
+    </>
+  ) : (
+    <div class="map-empty"><p>No flights yet.</p><span>Flights added in the private archive will appear here.</span></div>
+  )}
+
+  <script type="application/json" data-flight-payload set:html={payload} is:inline />
+</section>
+
+<script>
+  import * as maplibregl from "maplibre-gl";
+  import type { GeoJSONSource, MapEventType, MapLayerMouseEvent } from "maplibre-gl";
+  import { createNightHemisphereLayer } from "../lib/map/night-layer";
+  import { GLOBE_STYLE } from "../lib/map/config";
+  import {
+    GLOBE_ROTATION,
+    WORLD_CAMERA,
+    nightLightsGeoJson,
+    rotationAllowedAtZoom,
+  } from "../lib/map/globe";
+  import type { NightLightPoint } from "../lib/map/globe";
+  import { formatFlightDuration } from "../lib/flight-math";
+  import type { FlightArchiveAirport, FlightArchiveRoute } from "../types/domain";
+
+  type FlightType = "all" | "domestic" | "international";
+
+  interface FlightPayload {
+    airports: FlightArchiveAirport[];
+    flights: FlightArchiveRoute[];
+    years: string[];
+  }
+
+  function initializeFlightGlobe(root: HTMLElement) {
+    if (root.dataset.enhanced) return;
+    root.dataset.enhanced = "true";
+    const canvas = root.querySelector<HTMLElement>("[data-flight-canvas]");
+    const payloadElement = root.querySelector<HTMLScriptElement>("[data-flight-payload]");
+    const status = root.querySelector<HTMLElement>("[data-flight-status]");
+    if (!canvas || !payloadElement) return;
+
+    let airports: FlightArchiveAirport[] = [];
+    let flights: FlightArchiveRoute[] = [];
+    let years: string[] = [];
+    try {
+      ({ airports, flights, years } = JSON.parse(payloadElement.textContent || "{}") as FlightPayload);
+    } catch {
+      if (status) status.textContent = "Flight data unavailable. The flight list below remains available.";
+      return;
+    }
+    if (!flights.length) return;
+
+    const yearSelect = root.querySelector<HTMLElement>("[data-flight-year]") as HTMLSelectElement | null;
+    const typeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-flight-type]")];
+    const resultsTitle = root.querySelector<HTMLElement>("[data-flight-results-title]");
+    const emptyNotice = root.querySelector<HTMLElement>("[data-flight-empty]");
+    const hoverTip = root.querySelector<HTMLElement>("[data-flight-hover]");
+    const statValues = {
+      flights: root.querySelector<HTMLElement>('[data-stat-value="flights"]'),
+      airports: root.querySelector<HTMLElement>('[data-stat-value="airports"]'),
+      distance: root.querySelector<HTMLElement>('[data-stat-value="distance"]'),
+      time: root.querySelector<HTMLElement>('[data-stat-value="time"]'),
+    };
+    const flightItems = [...root.querySelectorAll<HTMLElement>("[data-flight-item]")];
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const url = new URLSearchParams(window.location.search);
+    let selectedYear = years.includes(url.get("year") ?? "") ? url.get("year")! : "";
+    const typeParam = url.get("type");
+    let selectedType: FlightType = typeParam === "domestic" || typeParam === "international" ? typeParam : "all";
+    if (yearSelect) yearSelect.value = selectedYear;
+
+    const filteredFlights = () => flights.filter((flight) =>
+      (!selectedYear || flight.year === selectedYear)
+      && (selectedType === "all" || (selectedType === "domestic" ? flight.isDomestic : !flight.isDomestic)),
+    );
+
+    const filteredAirports = (): FlightArchiveAirport[] => {
+      const byId = new Map<string, FlightArchiveAirport>();
+      for (const flight of filteredFlights()) {
+        byId.set(flight.departure.id, flight.departure);
+        byId.set(flight.arrival.id, flight.arrival);
+      }
+      return [...byId.values()];
+    };
+
+    const airportGeoJson = (items: FlightArchiveAirport[]) => ({
+      type: "FeatureCollection" as const,
+      features: items.map((airport) => ({
+        type: "Feature" as const,
+        properties: {
+          id: airport.id,
+          iataCode: airport.iataCode,
+          name: airport.name,
+          nameZh: airport.nameZh,
+          city: airport.city,
+          cityZh: airport.cityZh,
+          country: airport.country,
+        },
+        geometry: { type: "Point" as const, coordinates: [airport.longitude, airport.latitude] as [number, number] },
+      })),
+    });
+
+    let map: maplibregl.Map;
+    let arcLayer: any = null;
+    let overlay: any = null;
+    let popup: maplibregl.Popup | null = null;
+    let frameId = 0;
+    let restartTimer = 0;
+    let lastFrame = 0;
+    let mapVisible = true;
+    let nightLightPoints: NightLightPoint[] = [];
+
+    const updateStats = () => {
+      const visible = filteredFlights();
+      const totalDistance = visible.reduce((sum, flight) => sum + flight.routeDistanceKm, 0);
+      const totalHours = visible.reduce((sum, flight) => sum + flight.estimatedHours, 0);
+      if (statValues.flights) statValues.flights.textContent = String(visible.length);
+      if (statValues.airports) statValues.airports.textContent = String(filteredAirports().length);
+      if (statValues.distance) statValues.distance.textContent = Math.round(totalDistance).toLocaleString();
+      if (statValues.time) statValues.time.textContent = formatFlightDuration(totalHours);
+    };
+
+    const updateList = () => {
+      const visible = filteredFlights();
+      const ids = new Set(visible.map((flight) => flight.id));
+      flightItems.forEach((item) => {
+        item.hidden = !ids.has(item.dataset.flightId ?? "");
+      });
+      if (emptyNotice) emptyNotice.hidden = visible.length > 0;
+      const label = selectedYear || "All time";
+      if (resultsTitle) resultsTitle.textContent = `${visible.length} ${visible.length === 1 ? "flight" : "flights"} · ${label}`;
+    };
+
+    const syncUrl = () => {
+      const next = new URL(window.location.href);
+      for (const key of ["year", "type"]) next.searchParams.delete(key);
+      if (selectedYear) next.searchParams.set("year", selectedYear);
+      if (selectedType !== "all") next.searchParams.set("type", selectedType);
+      window.history.replaceState(null, "", `${next.pathname}${next.search}${next.hash}`);
+    };
+
+    const closePopup = () => {
+      popup?.remove();
+      popup = null;
+    };
+
+    const applyFilter = () => {
+      updateStats();
+      updateList();
+      arcLayer?.setProps({ data: filteredFlights() });
+      (map?.getSource("flight-airports") as GeoJSONSource | undefined)?.setData(airportGeoJson(filteredAirports()));
+      for (const button of typeButtons) {
+        const active = button.dataset.flightType === selectedType;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
+      closePopup();
+      syncUrl();
+      if (status) status.textContent = `${filteredFlights().length} filtered flights shown.`;
+    };
+
+    const canRotate = () => mapVisible && !document.hidden && rotationAllowedAtZoom(map.getZoom()) && !reducedMotion.matches;
+    const stopRotation = () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      frameId = 0;
+      lastFrame = 0;
+    };
+    const rotate = (time: number) => {
+      frameId = 0;
+      if (!canRotate()) return;
+      if (lastFrame && !map.isMoving()) {
+        const elapsed = Math.min(time - lastFrame, 50);
+        const center = map.getCenter();
+        map.setCenter([center.lng + GLOBE_ROTATION.degreesPerSecond * elapsed / 1000, center.lat]);
+      }
+      lastFrame = time;
+      frameId = window.requestAnimationFrame(rotate);
+    };
+    const startRotation = () => {
+      if (!frameId && canRotate()) frameId = window.requestAnimationFrame(rotate);
+    };
+    const pauseRotation = (delay: number = GLOBE_ROTATION.idleDelay) => {
+      stopRotation();
+      window.clearTimeout(restartTimer);
+      restartTimer = window.setTimeout(startRotation, delay);
+    };
+
+    const showAirportPopup = (airport: FlightArchiveAirport, lngLat: [number, number]) => {
+      const content = document.createElement("div");
+      const title = document.createElement("strong");
+      const subtitle = document.createElement("span");
+      title.textContent = `${airport.iataCode} · ${airport.nameZh || airport.name}`;
+      subtitle.textContent = [airport.cityZh || airport.city, airport.country].filter(Boolean).join(" · ");
+      content.appendChild(title);
+      content.appendChild(subtitle);
+      popup = new maplibregl.Popup({ closeButton: false, offset: 14 })
+        .setLngLat(lngLat)
+        .setDOMContent(content)
+        .addTo(map);
+    };
+
+    const showFlightPopup = (flight: FlightArchiveRoute) => {
+      const content = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = flight.displayNumber;
+      const route = document.createElement("span");
+      route.textContent = `${flight.departure.iataCode} → ${flight.arrival.iataCode}`;
+      const meta = document.createElement("span");
+      meta.textContent = [
+        flight.flightDate,
+        flight.airlineNameZh || flight.airlineName,
+        flight.aircraftLabel,
+        `${Math.round(flight.routeDistanceKm)} km · ${formatFlightDuration(flight.estimatedHours)}`,
+      ].filter(Boolean).join(" · ");
+      content.appendChild(title);
+      content.appendChild(route);
+      content.appendChild(meta);
+      const midLng = (flight.departure.longitude + flight.arrival.longitude) / 2;
+      const midLat = (flight.departure.latitude + flight.arrival.latitude) / 2;
+      popup = new maplibregl.Popup({ closeButton: false, offset: 14 })
+        .setLngLat([midLng, midLat])
+        .setDOMContent(content)
+        .addTo(map);
+    };
+
+    try {
+      map = new maplibregl.Map({
+        container: canvas,
+        style: GLOBE_STYLE,
+        center: WORLD_CAMERA.center,
+        zoom: WORLD_CAMERA.zoom,
+        minZoom: WORLD_CAMERA.zoom,
+        maxZoom: 8,
+        maxPitch: 0,
+        attributionControl: false,
+        dragRotate: false,
+      });
+      map.touchZoomRotate.disableRotation();
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      map.on("zoom", () => {
+        if (!rotationAllowedAtZoom(map.getZoom())) stopRotation();
+      });
+      map.on("zoomend", () => {
+        if (rotationAllowedAtZoom(map.getZoom())) pauseRotation();
+      });
+      map.on("error", (event: MapEventType["error"]) => {
+        if (event.error?.message.toLowerCase().includes("tile")) {
+          root.classList.add("has-map-error");
+          if (status) status.textContent = "Basemap unavailable. Airport markers and the flight list remain available.";
+        } else {
+          console.error("Atlas flight globe error", event.error);
+        }
+      });
+
+      map.on("load", async () => {
+        map.setProjection({ type: "globe" });
+        const nightHemisphereLayer = createNightHemisphereLayer(new Date());
+        map.addLayer(nightHemisphereLayer);
+        map.addSource("night-lights", { type: "geojson", data: nightLightsGeoJson([], new Date()) });
+        map.addLayer({
+          id: "night-lights-halo",
+          type: "circle",
+          source: "night-lights",
+          paint: {
+            "circle-color": "#ffd8a3",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"],
+              1, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.25, 1, 1.15],
+              3, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.35, 1, 1.63],
+              5, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.75, 1, 3.6],
+              6, ["interpolate", ["linear"], ["get", "intensity"], 0, 1.8, 1, 8.5],
+              8, ["interpolate", ["linear"], ["get", "intensity"], 0, 6, 1, 27],
+            ],
+            "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.025, 1, 0.36],
+            "circle-blur": 1,
+          },
+        });
+        map.addLayer({
+          id: "night-lights-core",
+          type: "circle",
+          source: "night-lights",
+          paint: {
+            "circle-color": "#ffe4b8",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"],
+              1, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.12, 1, 0.58],
+              3, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.18, 1, 0.84],
+              5, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.32, 1, 1.65],
+              6, ["interpolate", ["linear"], ["get", "intensity"], 0, 0.55, 1, 2.8],
+              8, ["interpolate", ["linear"], ["get", "intensity"], 0, 1.4, 1, 7.2],
+            ],
+            "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.04, 1, 0.68],
+            "circle-blur": 0.86,
+          },
+        });
+        const updateEarthLighting = () => {
+          const now = new Date();
+          nightHemisphereLayer.setDate(now);
+          (map.getSource("night-lights") as GeoJSONSource | undefined)?.setData(nightLightsGeoJson(nightLightPoints, now));
+        };
+        fetch("/data/night-lights.json")
+          .then((response) => {
+            if (!response.ok) throw new Error(`Night-light data returned ${response.status}`);
+            return response.json() as Promise<{ points?: NightLightPoint[] }>;
+          })
+          .then((data) => {
+            if (!Array.isArray(data.points)) throw new Error("Night-light data is invalid");
+            nightLightPoints = data.points;
+            updateEarthLighting();
+          })
+          .catch((error) => console.warn("Atlas night lights unavailable", error));
+        window.setInterval(updateEarthLighting, 60_000);
+
+        map.addSource("flight-airports", { type: "geojson", data: airportGeoJson(filteredAirports()) });
+        map.addLayer({
+          id: "flight-airports",
+          type: "circle",
+          source: "flight-airports",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 3, 6, 5],
+            "circle-color": "#f5f7f6",
+            "circle-opacity": 0.95,
+            "circle-stroke-color": "rgba(15, 18, 19, 0.85)",
+            "circle-stroke-width": 1,
+          },
+        });
+
+        map.on("click", "flight-airports", (event: MapLayerMouseEvent) => {
+          pauseRotation();
+          const feature = event.features?.[0];
+          if (!feature || feature.geometry.type !== "Point") return;
+          const id = String(feature.properties?.id ?? "");
+          const airport = airports.find((item) => item.id === id);
+          const coordinates = feature.geometry.coordinates as [number, number];
+          if (airport) showAirportPopup(airport, coordinates);
+        });
+        map.on("mouseenter", "flight-airports", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "flight-airports", () => { map.getCanvas().style.cursor = ""; });
+
+        // deck.gl arc overlay, loaded dynamically so a deck.gl failure cannot
+        // take down the base globe, the airport markers or the flight list.
+        try {
+          const [{ MapLibreOverlay }, { ArcLayer }] = await Promise.all([
+            import("@deck.gl/maplibre"),
+            import("@deck.gl/layers"),
+          ]);
+          arcLayer = new ArcLayer({
+            id: "flight-arcs",
+            data: filteredFlights(),
+            getSourcePosition: (flight: FlightArchiveRoute) => [flight.departure.longitude, flight.departure.latitude],
+            getTargetPosition: (flight: FlightArchiveRoute) => [flight.arrival.longitude, flight.arrival.latitude],
+            greatCircle: true,
+            numSegments: 100,
+            antialiasing: true,
+            pickable: true,
+            getWidth: 1.4,
+            widthMinPixels: 1,
+            widthMaxPixels: 2.5,
+            getSourceColor: [236, 241, 239, 180],
+            getTargetColor: [236, 241, 239, 180],
+            getHeight: (flight: FlightArchiveRoute) => Math.min(1.8, Math.max(0.25, flight.greatCircleKm / 4000)),
+            parameters: { cullMode: "none" },
+          });
+          overlay = new MapLibreOverlay({ interleaved: true, layers: [arcLayer] });
+          map.addControl(overlay);
+
+          map.on("mousemove", (event: MapLayerMouseEvent) => {
+            if (!overlay) return;
+            const picked = overlay.pickObject({ x: event.point.x, y: event.point.y });
+            const flight = picked?.object as FlightArchiveRoute | undefined;
+            map.getCanvas().style.cursor = flight ? "pointer" : "";
+            if (hoverTip) {
+              if (flight) {
+                hoverTip.textContent = `${flight.displayNumber} · ${flight.departure.iataCode} → ${flight.arrival.iataCode}`;
+                hoverTip.style.left = `${event.point.x}px`;
+                hoverTip.style.top = `${event.point.y}px`;
+                hoverTip.hidden = false;
+              } else {
+                hoverTip.hidden = true;
+              }
+            }
+          });
+          map.on("click", (event: MapLayerMouseEvent) => {
+            if (!overlay) return;
+            if (hoverTip) hoverTip.hidden = true;
+            const picked = overlay.pickObject({ x: event.point.x, y: event.point.y });
+            if (picked?.object) {
+              pauseRotation();
+              showFlightPopup(picked.object as FlightArchiveRoute);
+            }
+          });
+        } catch (error) {
+          console.warn("deck.gl flight arcs unavailable", error);
+          if (status) status.textContent = "Route overlay unavailable. Airport markers and the flight list remain available.";
+        }
+
+        applyFilter();
+        startRotation();
+      });
+    } catch {
+      root.classList.add("has-map-error");
+      if (status) status.textContent = "Interactive globe unavailable. The flight list below remains available.";
+      return;
+    }
+
+    yearSelect?.addEventListener("change", () => {
+      selectedYear = yearSelect.value;
+      applyFilter();
+    });
+    typeButtons.forEach((button) => button.addEventListener("click", () => {
+      selectedType = (button.dataset.flightType ?? "all") as FlightType;
+      applyFilter();
+    }));
+    const beginInteraction = () => {
+      stopRotation();
+      window.clearTimeout(restartTimer);
+    };
+    canvas.addEventListener("pointerdown", beginInteraction, { passive: true });
+    canvas.addEventListener("pointerup", () => pauseRotation(), { passive: true });
+    canvas.addEventListener("pointercancel", () => pauseRotation(), { passive: true });
+    canvas.addEventListener("wheel", () => pauseRotation(), { passive: true });
+    canvas.addEventListener("keydown", () => pauseRotation());
+    reducedMotion.addEventListener("change", () => reducedMotion.matches ? stopRotation() : startRotation());
+    document.addEventListener("visibilitychange", () => document.hidden ? stopRotation() : startRotation());
+    new IntersectionObserver(([entry]) => {
+      mapVisible = entry.isIntersecting;
+      if (mapVisible) startRotation();
+      else stopRotation();
+    }, { threshold: 0.08 }).observe(root);
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-flight-globe]").forEach(initializeFlightGlobe);
+</script>

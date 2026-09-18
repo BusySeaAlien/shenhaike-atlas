@@ -1,0 +1,80 @@
+---
+import type { Airline } from "../../types/domain";
+import { COUNTRY_OPTIONS } from "../../lib/countries";
+
+interface Props { airline?: Airline }
+const { airline } = Astro.props;
+const action = airline ? `/guillaume/api/airlines/${airline.id}/` : "/guillaume/api/airlines/";
+const method = airline ? "PATCH" : "POST";
+---
+
+<form class="admin-form" data-airline-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field"><label for="iataCode">IATA code *</label><input id="iataCode" name="iataCode" maxlength="2" required value={airline?.iataCode} /><span class="field-error" data-error="iataCode"></span></div>
+    <div class="field"><label for="icaoCode">ICAO code</label><input id="icaoCode" name="icaoCode" maxlength="3" value={airline?.icaoCode ?? ""} /><span class="field-error" data-error="icaoCode"></span></div>
+    <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={airline?.name} /><span class="field-error" data-error="name"></span></div>
+    <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={airline?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
+    <div class="field"><label for="country">Country *</label><select id="country" name="country" required><option value="" disabled selected={!airline?.country}>请选择国家</option>{COUNTRY_OPTIONS.map((country) => <option value={country.name} selected={airline?.country === country.name}>{country.nameZh}（{country.name}）</option>)}</select><span class="field-error" data-error="country"></span></div>
+    <div class="field"><label for="callsign">Callsign</label><input id="callsign" name="callsign" value={airline?.callsign ?? ""} /><span class="field-error" data-error="callsign"></span></div>
+    <div class="field wide"><label for="notes">Notes</label><textarea id="notes" name="notes">{airline?.notes ?? ""}</textarea><span class="field-error" data-error="notes"></span></div>
+  </div>
+  <div class="form-actions"><button type="submit">{airline ? "Save airline" : "Create airline"}</button><a class="button secondary" href="/guillaume/airlines/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  airline && (
+    <div class="danger-zone">
+      <p>有航班记录引用此航司时，删除会被拒绝。</p>
+      <button class="danger" type="button" data-delete-airline data-action={`/guillaume/api/airlines/${airline.id}/`}>Delete airline</button>
+    </div>
+  )
+}
+
+<script>
+  interface ApiResult { error?: { message?: string; fields?: Record<string, string> } }
+  const form = document.querySelector<HTMLFormElement>("[data-airline-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const payload = {
+      iataCode: data.get("iataCode"), icaoCode: data.get("icaoCode"),
+      name: data.get("name"), nameZh: data.get("nameZh"),
+      country: data.get("country"), callsign: data.get("callsign"), notes: data.get("notes"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign("/guillaume/airlines/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-airline]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this airline? This cannot be undone.")) return;
+    button.disabled = true;
+    const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+    const result = await response.json() as ApiResult;
+    if (response.ok) window.location.assign("/guillaume/airlines/");
+    else { window.alert(result.error?.message ?? "Delete failed"); button.disabled = false; }
+  });
+</script>

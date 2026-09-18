@@ -27,11 +27,21 @@ pnpm dev
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
 
-公开档案包含首页地球（Scope × View × Filter）与摘要、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴、`/wishlist/` 愿望清单和静态 `/about/`。
+公开档案包含首页地球（Scope × View × Filter）与摘要、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/flight/` 航班档案、`/timeline/` 到访时间轴、`/wishlist/` 愿望清单和静态 `/about/`。
 
 首页 Footprint 按访问年份筛选，Journey 按行程筛选，两种筛选互斥并始终按 Place 去重。地图下方同步显示精简结果列表，cluster 可进一步收窄列表；`/map/` 保留为兼容旧链接的首页地球跳转。
 
 Wishlist 以空心紫圈作为独立开关图层叠加在地球上，与 Scope × View 两个维度正交、不做聚类，China 范围只显示中国条目；已到访为 0 但清单非空时地球照常渲染，清单为空时不渲染开关。
+
+## 航班档案 `/flight/`
+
+`/flight/` 是只读的航班档案，展示与首页视觉一致的旋转地球，将飞过的机场显示为去重白点，并以高于球面的 3D 大圆弧连接每条航段的起降机场。页面支持按年度与国内/国际在客户端筛选，同步更新地球弧线、机场白点、统计（Flights / Airports / Distance / Estimated Time）与航班列表；禁用 JavaScript 时仍展示服务端渲染的完整列表。
+
+- Flight 是独立档案，Journey 只是可选关联（`Flight 0..1 ── Journey`）。无 Journey 的 Flight 仍进入地球、列表与统计；删除 Journey 时关联 Flight 保留，`journey_id` 自动置空。
+- 一条 Flight 表示一个实际航段（`PVG → SIN → CDG` 存为两条 Flight），起降机场不能相同。
+- 国内/国际采用中国大陆口径：起降机场的 `country_code` 均为 `CHN` 为国内，其余全部国际（含大陆↔港澳台、港澳台互飞、任何境外航段）。分类由后端根据机场 ISO3 自动产生。
+- 大圆距离 `d`、航路系数 `k`、航路距离 `D = d × k`、估算时间 `T` 与公式版本全部由服务端 `lib/flight-math.ts` 计算并写入数据库，浏览器提交的值一律忽略；修改机场经纬度或国家会原子重算所有关联航班。
+- 所有 Flight、Airport、Airline、Aircraft Type 的新建、编辑、删除只能发生在受保护的 `/guillaume/` 后台，公开页面与公开 API 均无写入入口。首版不依赖任何第三方航班/机场/航路 API。
 
 本地后台位于 `http://127.0.0.1:4321/guillaume/`。认证旁路只会在 `astro dev` 的编译期开发模式启用，默认身份为 `local@atlas.invalid`；可复制 `.dev.vars.example` 为 `.dev.vars` 修改本地显示身份。请求参数、Cookie 或 Host 头均不能开启此旁路。
 
@@ -103,7 +113,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 ## 渲染边界
 
 - `/about/` 显式预渲染为静态页面，`public/` 资源由静态资源层提供。
-- 首页、地图、地点、旅程和时间轴页面使用按请求渲染，并设置 `Cache-Control: no-store`，后台保存后下一次读取即反映最新 D1 数据。
+- 首页、地图、地点、旅程、航班和时间轴页面使用按请求渲染，并设置 `Cache-Control: no-store`，后台保存后下一次读取即反映最新 D1 数据。
 - `/system/database/` 在服务端直接调用共享数据库查询层，不通过 HTTP 请求自身 API，也不缓存响应。
 - 公开 API 只会在地图交互等浏览器端确有需要时增加。
 
@@ -122,6 +132,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 | 页面 | 组件 | 底图 |
 | --- | --- | --- |
 | `/`（首页） | `components/PreHomeGlobe.astro` | NASA EOSDIS GIBS Blue Marble（卫星影像） |
+| `/flight/` | `components/FlightGlobe.astro` | NASA EOSDIS GIBS Blue Marble + deck.gl 大圆弧 |
 | `/map/` | 301 跳转至 `/#globe` | — |
 
 `/pre-home/` 301 跳转到 `/` —— 地球作为候选首页时用的是那个地址，保留跳转以免旧链接失效。
@@ -182,3 +193,6 @@ Atlas 从 Home 与 Lens 延续了宋体标题、克制留白、低饱和纸张�
 - `atlas_wishlist_items` 是独立的愿望数据表：无 slug、无外键、不存行政编码（不参与 Footprint），创建与编辑仍按坐标解析以校验国家一致性。Promote 在单个 `batch()` 内完成 Place INSERT 与条目 DELETE。
 - 表单输入由服务端校验层检查必填值、长度、slug、真实日历日期、坐标、日期范围与外键，数据库约束和 trigger 提供最终保护。
 - `seed.sql` 包含重复访问、同一旅程重复地点、跨年旅程及空旅程，只允许通过 `db:seed:local` 导入本地环境。
+- 航班档案由 `atlas_airports`、`atlas_airlines`、`atlas_aircraft_types`、`atlas_flights` 四张表构成，全部以 `atlas_` 前缀隔离。机场 `country_code` 由所选国家名派生（与 `places` 的行政归属同源），航司与机场代码统一大写入库。
+- Flight 的派生字段（大圆距离、航路系数、航路距离、估算时间、国内/国际、公式版本）由服务端在创建与更新时重算；唯一键为「航司 + 航班号 + 日期 + 起降机场」，重复航段被拒绝。被 Flight 引用的机场、航司、机型不能删除，删除 Flight 不级联任何资料库，删除 Journey 将关联 Flight 的 `journey_id` 置空。
+- `seed.sql` 不写入任何 Flight 或机场数据；首版全部通过 `/guillaume/` 后台手工维护。

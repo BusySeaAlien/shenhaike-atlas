@@ -1,0 +1,14 @@
+---
+import AircraftTypeForm from "../../../components/admin/AircraftTypeForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { getAircraftTypeById } from "../../../lib/db/aircraft-types";
+
+const id = Number(Astro.params.id);
+const aircraftType = Number.isInteger(id) && id > 0 ? await getAircraftTypeById(getDatabase(), id) : null;
+if (!aircraftType) Astro.response.status = 404;
+---
+
+<AdminLayout title={aircraftType ? `Edit ${aircraftType.icaoCode}` : "Aircraft type not found"}>
+  {aircraftType ? <><div class="admin-heading"><div><p class="eyebrow">AIRCRAFT TYPES / EDIT</p><h1>{aircraftType.modelZh || aircraftType.model}</h1></div></div><AircraftTypeForm aircraftType={aircraftType} /></> : <p class="empty-admin">Aircraft type not found.</p>}
+</AdminLayout>

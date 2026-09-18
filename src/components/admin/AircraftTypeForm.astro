@@ -1,0 +1,76 @@
+---
+import type { AircraftType } from "../../types/domain";
+
+interface Props { aircraftType?: AircraftType }
+const { aircraftType } = Astro.props;
+const action = aircraftType ? `/guillaume/api/aircraft-types/${aircraftType.id}/` : "/guillaume/api/aircraft-types/";
+const method = aircraftType ? "PATCH" : "POST";
+---
+
+<form class="admin-form" data-aircraft-type-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field"><label for="icaoCode">ICAO type designator *</label><input id="icaoCode" name="icaoCode" maxlength="4" required value={aircraftType?.icaoCode} /><span class="field-error" data-error="icaoCode"></span></div>
+    <div class="field"><label for="manufacturer">Manufacturer *</label><input id="manufacturer" name="manufacturer" required value={aircraftType?.manufacturer} /><span class="field-error" data-error="manufacturer"></span></div>
+    <div class="field"><label for="model">Model *</label><input id="model" name="model" required value={aircraftType?.model} /><span class="field-error" data-error="model"></span></div>
+    <div class="field"><label for="modelZh">中文型号</label><input id="modelZh" name="modelZh" value={aircraftType?.modelZh ?? ""} /><span class="field-error" data-error="modelZh"></span></div>
+    <div class="field wide"><label for="notes">Notes</label><textarea id="notes" name="notes">{aircraftType?.notes ?? ""}</textarea><span class="field-error" data-error="notes"></span></div>
+  </div>
+  <div class="form-actions"><button type="submit">{aircraftType ? "Save aircraft type" : "Create aircraft type"}</button><a class="button secondary" href="/guillaume/aircraft-types/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  aircraftType && (
+    <div class="danger-zone">
+      <p>有航班记录引用此机型时，删除会被拒绝。</p>
+      <button class="danger" type="button" data-delete-aircraft-type data-action={`/guillaume/api/aircraft-types/${aircraftType.id}/`}>Delete aircraft type</button>
+    </div>
+  )
+}
+
+<script>
+  interface ApiResult { error?: { message?: string; fields?: Record<string, string> } }
+  const form = document.querySelector<HTMLFormElement>("[data-aircraft-type-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const payload = {
+      icaoCode: data.get("icaoCode"), manufacturer: data.get("manufacturer"),
+      model: data.get("model"), modelZh: data.get("modelZh"), notes: data.get("notes"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign("/guillaume/aircraft-types/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-aircraft-type]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this aircraft type? This cannot be undone.")) return;
+    button.disabled = true;
+    const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+    const result = await response.json() as ApiResult;
+    if (response.ok) window.location.assign("/guillaume/aircraft-types/");
+    else { window.alert(result.error?.message ?? "Delete failed"); button.disabled = false; }
+  });
+</script>

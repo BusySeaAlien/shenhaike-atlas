@@ -1,0 +1,13 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listFlights } from "../../../lib/db/flights";
+import { formatFlightDuration } from "../../../lib/flight-math";
+
+const flights = await listFlights(getDatabase());
+---
+
+<AdminLayout title="Flights">
+  <div class="admin-heading"><div><p class="eyebrow">FLIGHT ARCHIVE / FLIGHTS</p><h1>Flights</h1></div><a class="button" href="/guillaume/flights/new/">+ New Flight</a></div>
+  {flights.length ? <table class="data-table"><thead><tr><th>Flight</th><th>Date</th><th>Route</th><th>Type</th><th>Distance</th><th>Time</th><th>Airline</th></tr></thead><tbody>{flights.map((flight) => <tr><td><a href={`/guillaume/flights/${flight.id}/`}>{flight.displayNumber}</a>{flight.journeyName && <><br /><small>{flight.journeyNameZh || flight.journeyName}</small></>}</td><td>{flight.flightDate}</td><td>{flight.departureLabel} → {flight.arrivalLabel}</td><td>{flight.isDomestic ? "Domestic" : "International"}</td><td>{Math.round(flight.routeDistanceKm)} km</td><td>{formatFlightDuration(flight.estimatedHours)}</td><td>{flight.airlineNameZh || flight.airlineName}</td></tr>)}</tbody></table> : <p class="empty-admin">No flights yet. Flights are maintained here in the private archive.</p>}
+</AdminLayout>
