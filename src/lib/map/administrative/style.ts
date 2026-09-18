@@ -11,9 +11,11 @@ import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
  */
 
 export const FOOTPRINT_FILL_COLOR = "#d5ddd8";
+export const WISHLIST_COUNTRY_FILL_COLOR = "#9d8ce8";
 
 /** Visited: clearly readable, still translucent (§36). */
 export const VISITED_FILL_OPACITY = 0.42;
+export const WISHLIST_FILL_OPACITY = 0.34;
 
 /** Unvisited: enough to read the outline, not enough to fight the imagery (§37). */
 export const UNVISITED_FILL_OPACITY = 0.04;
@@ -24,9 +26,18 @@ export const UNVISITED_FILL_OPACITY = 0.04;
  */
 export const VISITED_FILL_OPACITY_EXPRESSION: ExpressionSpecification = [
   "case",
+  ["boolean", ["feature-state", "wishlist"], false],
+  WISHLIST_FILL_OPACITY,
   ["boolean", ["feature-state", "visited"], false],
   VISITED_FILL_OPACITY,
   UNVISITED_FILL_OPACITY,
+];
+
+export const ADMIN_FILL_COLOR_EXPRESSION: ExpressionSpecification = [
+  "case",
+  ["boolean", ["feature-state", "wishlist"], false],
+  WISHLIST_COUNTRY_FILL_COLOR,
+  FOOTPRINT_FILL_COLOR,
 ];
 
 export const ADMIN_FILL_COLOR = "#d5ddd8";
@@ -79,7 +90,7 @@ export function footprintFillLayer(id: string, source: string): LayerSpecificati
     source,
     layout: { visibility: "none" },
     paint: {
-      "fill-color": FOOTPRINT_FILL_COLOR,
+      "fill-color": ADMIN_FILL_COLOR_EXPRESSION,
       "fill-opacity": VISITED_FILL_OPACITY_EXPRESSION,
       "fill-antialias": false,
     },

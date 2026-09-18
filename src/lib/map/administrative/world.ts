@@ -7,6 +7,7 @@ import {
   setLayersVisible,
   sourceSpec,
   syncVisitedState,
+  syncWishlistState,
   type FootprintHover,
 } from "./layers";
 import { WORLD_BORDER_WIDTH, footprintFillLayer, footprintLineLayer } from "./style";
@@ -71,6 +72,10 @@ export function hideWorldAdministrative(map: MapLibreMap): void {
 /** Country outlines stay visible so a 4%-opacity fill still reads as a map. */
 export function applyWorldVisitedState(map: MapLibreMap, visited: ReadonlySet<string>): void {
   syncVisitedState(map, WORLD_ADMIN_SOURCE, countryCodes, visited);
+}
+
+export function applyWorldWishlistState(map: MapLibreMap, wishlist: ReadonlySet<string>): void {
+  syncWishlistState(map, WORLD_ADMIN_SOURCE, countryCodes, wishlist);
 }
 
 /** Hover readout: country name plus how many places it holds (§58/§59). */

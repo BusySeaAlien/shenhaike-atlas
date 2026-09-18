@@ -122,12 +122,14 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
     hideChinaAdministrative,
     showChinaAdministrative,
     applyChinaVisitedState,
+    applyChinaWishlistState,
     bindChinaHover,
   } from "../lib/map/administrative/china";
   import { getVisitedChinaRegions, getVisitedCountries, countByCode } from "../lib/map/administrative/footprint";
   import type { FootprintHover } from "../lib/map/administrative/layers";
   import {
     applyWorldVisitedState,
+    applyWorldWishlistState,
     bindWorldHover,
     ensureWorldAdministrativeLoaded,
     hideWorldAdministrative,
@@ -419,7 +421,7 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
      * one button handler and forgotten in another. Everything it decides comes
      * from `visibilityPlan`, which is unit-tested without a map.
      */
-    const applyMapState = (animate = true) => {
+    const applyMapState = (animate = true, preserveCamera = false) => {
       const revision = ++stateRevision;
       const plan = visibilityPlan(scopeMode, viewMode);
       const duration = animate && !reducedMotion.matches ? 950 : 0;
@@ -474,7 +476,11 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
       // Administrative fill. Each scope loads its own data the first time
       // Footprint is opened in that scope, and never refetches afterwards
       // (§65/§66/§67).
-      if (plan.worldAdmin) {
+      const wishlistCountryCodes = new Set(wishlist.flatMap((item) => item.countryCode ? [item.countryCode] : []));
+      const worldWishlistOverlay = wishlistEnabled && scopeMode === "world";
+      const chinaWishlistOverlay = wishlistEnabled && scopeMode === "china" && wishlistCountryCodes.has("CHN");
+
+      if (plan.worldAdmin || worldWishlistOverlay) {
         void ensureWorldAdministrativeLoaded(map)
           .then(() => {
             // Hover can only bind once the layer exists; MapLibre throws on an
@@ -484,8 +490,9 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
               worldHoverBound = true;
             }
             // Scope or view may have moved on while the chunks loaded.
-            if (revision !== stateRevision || !visibilityPlan(scopeMode, viewMode).worldAdmin) return;
-            applyWorldVisitedState(map, getVisitedCountries(visiblePoints));
+            if (revision !== stateRevision || scopeMode !== "world") return;
+            applyWorldVisitedState(map, plan.worldAdmin ? getVisitedCountries(visiblePoints) : new Set());
+            applyWorldWishlistState(map, wishlistEnabled ? wishlistCountryCodes : new Set());
             showWorldAdministrative(map);
           })
           .catch((error) => console.warn("Atlas world footprint unavailable", error));
@@ -493,15 +500,16 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
         hideWorldAdministrative(map);
       }
 
-      if (plan.chinaAdmin) {
+      if (plan.chinaAdmin || chinaWishlistOverlay) {
         void ensureChinaAdministrativeLoaded(map)
           .then(() => {
             if (!chinaHoverBound) {
               bindChinaHover(map, (hover) => showFootprintTip(hover, chinaPlaceCounts));
               chinaHoverBound = true;
             }
-            if (revision !== stateRevision || !visibilityPlan(scopeMode, viewMode).chinaAdmin) return;
-            applyChinaVisitedState(map, getVisitedChinaRegions(visiblePoints));
+            if (revision !== stateRevision || scopeMode !== "china") return;
+            applyChinaVisitedState(map, plan.chinaAdmin ? getVisitedChinaRegions(visiblePoints) : new Set());
+            applyChinaWishlistState(map, chinaWishlistOverlay);
             showChinaAdministrative(map);
           })
           .catch((error) => console.warn("Atlas China footprint unavailable", error));
@@ -523,6 +531,8 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
       } else {
         hideChinaBoundary(map);
       }
+
+      if (preserveCamera) return;
 
       const journeyCamera = viewMode === "journey"
         ? journeyCameraTarget(routeBySlug.get(selectedJourney), scopeMode)
@@ -774,7 +784,7 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
     });
     wishlistButton?.addEventListener("click", () => {
       wishlistEnabled = !wishlistEnabled;
-      applyMapState(false);
+      applyMapState(false, true);
     });
     yearSelect?.addEventListener("change", () => {
       selectedYear = yearSelect.value;

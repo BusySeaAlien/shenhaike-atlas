@@ -7,6 +7,7 @@ import {
   setLayersVisible,
   sourceSpec,
   syncVisitedState,
+  syncWishlistState,
   type FootprintHover,
 } from "./layers";
 import { CHINA_INTERNAL_BORDER_WIDTH, footprintFillLayer, footprintLineLayer } from "./style";
@@ -86,6 +87,15 @@ export function hideChinaAdministrative(map: MapLibreMap): void {
  */
 export function applyChinaVisitedState(map: MapLibreMap, visited: ReadonlySet<string>): void {
   syncVisitedState(map, CHINA_ADMIN_SOURCE, provinceCodes, visited);
+}
+
+export function applyChinaWishlistState(map: MapLibreMap, enabled: boolean): void {
+  syncWishlistState(
+    map,
+    CHINA_ADMIN_SOURCE,
+    provinceCodes,
+    enabled ? new Set(provinceCodes) : new Set(),
+  );
 }
 
 /** Hover readout: province name plus how many places it holds (§58/§59). */

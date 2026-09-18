@@ -176,6 +176,7 @@ export interface WishlistPoint {
   name: string;
   nameZh: string | null;
   country: string;
+  countryCode: string | null;
   location: string;
   latitude: number;
   longitude: number;

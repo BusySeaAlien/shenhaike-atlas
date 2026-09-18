@@ -3,9 +3,11 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import { getDatabase } from "../../lib/db/client";
 import { listJourneys } from "../../lib/db/journeys";
 import { listPlaces } from "../../lib/db/places";
+import { listWishlistItems } from "../../lib/db/wishlist";
 
 const db = getDatabase();
-const view = Astro.url.searchParams.get("view") === "places" ? "places" : "journeys";
+const requestedView = Astro.url.searchParams.get("view");
+const view = requestedView === "places" || requestedView === "wishlist" ? requestedView : "journeys";
 const journeySort = Astro.url.searchParams.get("sort") === "asc" ? "asc" : "desc";
 const counts = await db.prepare(`
   SELECT
@@ -23,6 +25,7 @@ const journeys = view === "journeys"
 const places = view === "places"
   ? (await listPlaces(db)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   : [];
+const wishlist = view === "wishlist" ? await listWishlistItems(db) : [];
 ---
 
 <AdminLayout title="Dashboard">
@@ -38,6 +41,7 @@ const places = view === "places"
     <nav class="record-switcher" aria-label="Choose records to view">
       <a class:list={["button", { secondary: view !== "journeys" }]} href="/guillaume/?view=journeys" aria-current={view === "journeys" ? "page" : undefined}>Journeys</a>
       <a class:list={["button", { secondary: view !== "places" }]} href="/guillaume/?view=places" aria-current={view === "places" ? "page" : undefined}>Places</a>
+      <a class:list={["button", { secondary: view !== "wishlist" }]} href="/guillaume/?view=wishlist" aria-current={view === "wishlist" ? "page" : undefined}>Wishlist</a>
       {view === "journeys" && (
         <a class="button secondary sort-toggle" href={`/guillaume/?view=journeys&sort=${journeySort === "desc" ? "asc" : "desc"}`}>
           {journeySort === "desc" ? "Dates: newest first ↓" : "Dates: oldest first ↑"}
@@ -46,8 +50,10 @@ const places = view === "places"
     </nav>
     {view === "journeys" ? (
       journeys.length ? <table class="data-table"><thead><tr><th>Journey</th><th>Dates</th><th>Updated</th></tr></thead><tbody>{journeys.map((journey) => <tr><td><a href={`/guillaume/journeys/${journey.id}/`}>{journey.nameZh || journey.name}</a><br /><small>{journey.slug}</small></td><td>{journey.startDate} — {journey.endDate}</td><td>{journey.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No journeys yet.</p>
-    ) : (
+    ) : view === "places" ? (
       places.length ? <table class="data-table"><thead><tr><th>Place</th><th>Region</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{places.map((place) => <tr><td><a href={`/guillaume/places/${place.id}/`}>{place.nameZh || place.name}</a><br /><small>{place.slug}</small></td><td>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</td><td>{place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}</td><td>{place.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No places yet.</p>
+    ) : (
+      wishlist.length ? <table class="data-table"><thead><tr><th>Wishlist item</th><th>Region</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{wishlist.map((item) => <tr><td><a href={`/guillaume/wishlist/${item.id}/`}>{item.nameZh || item.name}</a>{item.nameZh && <><br /><small>{item.name}</small></>}</td><td>{[item.city, item.region, item.country].filter(Boolean).join(" · ")}</td><td>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</td><td>{item.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No wishlist items yet.</p>
     )}
   </section>
 </AdminLayout>

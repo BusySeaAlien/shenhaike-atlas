@@ -83,8 +83,8 @@ describe("globe data helpers", () => {
 
   it("builds wishlist markers with China filtering and full properties", () => {
     const wishlist: WishlistPoint[] = [
-      { id: "1", name: "桂林", nameZh: "桂林", country: "China", location: "Guilin · Guangxi · China", latitude: 25.2736, longitude: 110.29 },
-      { id: "2", name: "Lisbon", nameZh: "里斯本", country: "Portugal", location: "Lisbon · Portugal", latitude: 38.7223, longitude: -9.1393 },
+      { id: "1", name: "桂林", nameZh: "桂林", country: "China", countryCode: "CHN", location: "Guilin · Guangxi · China", latitude: 25.2736, longitude: 110.29 },
+      { id: "2", name: "Lisbon", nameZh: "里斯本", country: "Portugal", countryCode: "PRT", location: "Lisbon · Portugal", latitude: 38.7223, longitude: -9.1393 },
     ];
     const world = wishlistPointsGeoJson(wishlist, "world");
     expect(world.features).toHaveLength(2);

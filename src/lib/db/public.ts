@@ -14,6 +14,7 @@ import type {
   WishlistItem,
 } from "../../types/domain";
 import { inclusiveDayCount } from "../dates";
+import { countryCodeForName } from "../countries";
 import { getJourneyBySlug } from "./journeys";
 import { getPlaceBySlug } from "./places";
 import type { JourneyRow, PlaceRow, VisitRow } from "./rows";
@@ -232,6 +233,7 @@ export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
     name: item.nameZh || item.name,
     nameZh: item.nameZh,
     country: item.country,
+    countryCode: countryCodeForName(item.country),
     location: [item.city, item.region, item.country].filter(Boolean).join(" · "),
     latitude: item.latitude,
     longitude: item.longitude,

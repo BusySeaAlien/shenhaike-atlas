@@ -12,7 +12,7 @@
 .button.secondary, button.secondary { background: transparent; color: var(--ink); }
 button.danger { border-color: #8b493f; background: transparent; color: #8b493f; }
 button:disabled { cursor: wait; opacity: .55; }
-.dashboard-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .metric { padding: 28px 24px; }
 .metric + .metric { border-left: 1px solid var(--line); }
 .metric dt { margin-bottom: 15px; }

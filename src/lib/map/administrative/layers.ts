@@ -50,6 +50,17 @@ export function syncVisitedState(
   }
 }
 
+export function syncWishlistState(
+  map: MapLibreMap,
+  sourceId: string,
+  ids: readonly string[],
+  wishlist: ReadonlySet<string>,
+): void {
+  for (const id of ids) {
+    map.setFeatureState({ source: sourceId, id }, { wishlist: wishlist.has(id) });
+  }
+}
+
 /**
  * Feature ids come from the source's own code property via `promoteId`, so a
  * forgotten GeoJSON `id` cannot silently break `feature-state` (§44/§45).
