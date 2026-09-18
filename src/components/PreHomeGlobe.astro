@@ -183,6 +183,7 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
 
     const pointById = new Map(points.map((point) => [point.id, point]));
     const routeBySlug = new Map(routes.map((route) => [route.slug, route]));
+    const wishlistCountryCodes = new Set(wishlist.flatMap((item) => item.countryCode ? [item.countryCode] : []));
     const scopeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-scope]")];
     const viewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-view]")];
     const clusterButton = root.querySelector<HTMLButtonElement>("[data-globe-clusters]");
@@ -287,9 +288,13 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
         return;
       }
       const count = counts.get(hover.code) ?? 0;
-      footprintTip.textContent = count > 0
-        ? `${hover.name} · ${count} ${count === 1 ? "place" : "places"}`
-        : `${hover.name} · Not visited`;
+      const wishlistLabel = wishlistEnabled && wishlistCountryCodes.has(hover.code)
+        ? "Want to visit"
+        : null;
+      const visitLabel = count > 0
+        ? `${count} ${count === 1 ? "place" : "places"}`
+        : wishlistLabel ? null : "Not visited";
+      footprintTip.textContent = [hover.name, wishlistLabel, visitLabel].filter(Boolean).join(" · ");
       footprintTip.style.left = `${hover.x}px`;
       footprintTip.style.top = `${hover.y}px`;
       footprintTip.hidden = false;
@@ -476,7 +481,6 @@ const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\
       // Administrative fill. Each scope loads its own data the first time
       // Footprint is opened in that scope, and never refetches afterwards
       // (§65/§66/§67).
-      const wishlistCountryCodes = new Set(wishlist.flatMap((item) => item.countryCode ? [item.countryCode] : []));
       const worldWishlistOverlay = wishlistEnabled && scopeMode === "world";
       const chinaWishlistOverlay = wishlistEnabled && scopeMode === "china" && wishlistCountryCodes.has("CHN");
 
