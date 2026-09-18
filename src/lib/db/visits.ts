@@ -6,7 +6,7 @@ import type { VisitRow } from "./rows";
 import { toVisit } from "./rows";
 
 const VISIT_COLUMNS = `
-  id, place_id, journey_id, visited_at, sequence, transport_mode, notes, created_at, updated_at
+  id, place_id, journey_id, visited_at, sequence, notes, created_at, updated_at
 `;
 
 function validated(input: VisitInput): VisitInput {
@@ -64,17 +64,14 @@ export async function listTimelineVisits(db: D1Database): Promise<Visit[]> {
 export async function createVisit(db: D1Database, input: VisitInput): Promise<Visit> {
   const value = validated(input);
   await assertRelationsAndDate(db, value);
-  // A journey's first stop has no arriving leg, so the mode is nulled at the
-  // data layer, not just hidden in the UI (handoff §2.2/§9).
-  const transportMode = value.sequence === 1 ? null : value.transportMode;
   try {
     const row = await db
       .prepare(`
-        INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, transport_mode, notes)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, notes)
+        VALUES (?1, ?2, ?3, ?4, ?5)
         RETURNING ${VISIT_COLUMNS}
       `)
-      .bind(value.placeId, value.journeyId, value.visitedAt, value.sequence, transportMode, value.notes)
+      .bind(value.placeId, value.journeyId, value.visitedAt, value.sequence, value.notes)
       .first<VisitRow>();
     if (!row) throw new Error("Insert returned no visit.");
     return toVisit(row);
@@ -90,18 +87,16 @@ export async function updateVisit(
 ): Promise<Visit> {
   const value = validated(input);
   await assertRelationsAndDate(db, value);
-  const transportMode = value.sequence === 1 ? null : value.transportMode;
   try {
     const row = await db
       .prepare(`
         UPDATE atlas_visits SET
-          place_id = ?1, journey_id = ?2, visited_at = ?3, sequence = ?4,
-          transport_mode = ?5, notes = ?6,
+          place_id = ?1, journey_id = ?2, visited_at = ?3, sequence = ?4, notes = ?5,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = ?7
+        WHERE id = ?6
         RETURNING ${VISIT_COLUMNS}
       `)
-      .bind(value.placeId, value.journeyId, value.visitedAt, value.sequence, transportMode, value.notes, id)
+      .bind(value.placeId, value.journeyId, value.visitedAt, value.sequence, value.notes, id)
       .first<VisitRow>();
     if (!row) throw new DataError("not_found", "访问记录不存在");
     return toVisit(row);

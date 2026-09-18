@@ -12,11 +12,7 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await readJsonObject(request);
     const input: VisitInput = {
       placeId: numberValue(body.placeId), journeyId: numberValue(body.journeyId),
-      visitedAt: stringValue(body.visitedAt), sequence: numberValue(body.sequence),
-      // Raw string cast through for validation: only isTransportMode values
-      // survive validateVisitInput (handoff §9).
-      transportMode: optionalStringValue(body.transportMode) as VisitInput["transportMode"],
-      notes: optionalStringValue(body.notes),
+      visitedAt: stringValue(body.visitedAt), sequence: numberValue(body.sequence), notes: optionalStringValue(body.notes),
     };
     return json({ ok: true, data: await createVisit(getDatabase(), input) }, { status: 201 });
   } catch (error) {

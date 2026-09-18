@@ -1,7 +1,6 @@
 import type {
   HomeData,
   Journey,
-  JourneyMileage,
   JourneySummary,
   JourneyVisit,
   MapArchiveData,
@@ -11,13 +10,11 @@ import type {
   Place,
   PlaceVisit,
   TimelineVisit,
-  TransportMode,
   VisitedPlaceSummary,
   WishlistItem,
 } from "../../types/domain";
 import { inclusiveDayCount } from "../dates";
 import { countryCodeForName } from "../countries";
-import { journeyMileage } from "../geo";
 import { getJourneyBySlug } from "./journeys";
 import { getPlaceBySlug } from "./places";
 import type { JourneyRow, PlaceRow, VisitRow } from "./rows";
@@ -32,15 +29,6 @@ interface VisitedPlaceRow extends PlaceRow {
 interface JourneySummaryRow extends JourneyRow {
   place_count: number;
   visit_count: number;
-}
-
-interface JourneyLegRow {
-  journey_id: number;
-  id: number;
-  sequence: number;
-  transport_mode: string | null;
-  latitude: number;
-  longitude: number;
 }
 
 interface PlaceVisitRow extends VisitRow {
@@ -103,14 +91,13 @@ function toVisitedPlace(row: VisitedPlaceRow): VisitedPlaceSummary {
   return { ...toPlace(row), lastVisitedAt: row.last_visited_at, visitCount: row.visit_count };
 }
 
-function toJourneySummary(row: JourneySummaryRow, totalKm: number | null): JourneySummary {
+function toJourneySummary(row: JourneySummaryRow): JourneySummary {
   const journey = toJourney(row);
   return {
     ...journey,
     placeCount: row.place_count,
     visitCount: row.visit_count,
     dayCount: inclusiveDayCount(journey.startDate, journey.endDate),
-    totalKm,
   };
 }
 
@@ -126,47 +113,16 @@ export async function listVisitedPlaces(db: D1Database): Promise<VisitedPlaceSum
 }
 
 export async function listJourneySummaries(db: D1Database): Promise<JourneySummary[]> {
-  const [summaryResult, legsResult] = await Promise.all([
-    db.prepare(`
-      SELECT ${JOURNEY_COLUMNS},
-        COUNT(DISTINCT v.place_id) AS place_count,
-        COUNT(v.id) AS visit_count
-      FROM atlas_journeys j
-      LEFT JOIN atlas_visits v ON v.journey_id = j.id
-      GROUP BY j.id
-      ORDER BY j.start_date DESC, j.id DESC
-    `).all<JourneySummaryRow>(),
-    // One extra query for every visit's coordinates and mode; the GROUP BY
-    // summary cannot carry ordered per-stop geometry without aggregation
-    // tricks. ORDER BY guarantees order, and the group sort below is a
-    // defensive second guard (handoff §5.2).
-    db.prepare(`
-      SELECT v.journey_id, v.id, v.sequence, v.transport_mode,
-        p.latitude, p.longitude
-      FROM atlas_visits v
-      INNER JOIN atlas_places p ON p.id = v.place_id
-      ORDER BY v.journey_id, v.sequence, v.id
-    `).all<JourneyLegRow>(),
-  ]);
-
-  const rowsByJourney = new Map<number, JourneyLegRow[]>();
-  for (const row of legsResult.results) {
-    const rows = rowsByJourney.get(row.journey_id) ?? [];
-    rows.push(row);
-    rowsByJourney.set(row.journey_id, rows);
-  }
-  const totalByJourney = new Map<number, number | null>();
-  for (const [journeyId, rows] of rowsByJourney) {
-    rows.sort((a, b) => a.sequence - b.sequence || a.id - b.id);
-    const mileage = journeyMileage(rows.map((row) => ({
-      latitude: row.latitude,
-      longitude: row.longitude,
-      transportMode: (row.transport_mode as TransportMode | null) ?? null,
-    })));
-    totalByJourney.set(journeyId, mileage?.totalKm ?? null);
-  }
-
-  return summaryResult.results.map((row) => toJourneySummary(row, totalByJourney.get(row.id) ?? null));
+  const { results } = await db.prepare(`
+    SELECT ${JOURNEY_COLUMNS},
+      COUNT(DISTINCT v.place_id) AS place_count,
+      COUNT(v.id) AS visit_count
+    FROM atlas_journeys j
+    LEFT JOIN atlas_visits v ON v.journey_id = j.id
+    GROUP BY j.id
+    ORDER BY j.start_date DESC, j.id DESC
+  `).all<JourneySummaryRow>();
+  return results.map(toJourneySummary);
 }
 
 export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData> {
@@ -320,7 +276,7 @@ export async function getPlaceDetail(
   const place = await getPlaceBySlug(db, slug);
   if (!place) return null;
   const { results } = await db.prepare(`
-    SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.transport_mode, v.notes,
+    SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.notes,
       v.created_at, v.updated_at,
       j.slug AS journey_slug, j.name AS journey_name, j.name_zh AS journey_name_zh
     FROM atlas_visits v
@@ -342,11 +298,11 @@ export async function getPlaceDetail(
 export async function getJourneyDetail(
   db: D1Database,
   slug: string,
-): Promise<{ journey: Journey; visits: JourneyVisit[]; mileage: JourneyMileage | null } | null> {
+): Promise<{ journey: Journey; visits: JourneyVisit[] } | null> {
   const journey = await getJourneyBySlug(db, slug);
   if (!journey) return null;
   const { results } = await db.prepare(`
-    SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.transport_mode, v.notes,
+    SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.notes,
       v.created_at, v.updated_at,
       p.slug AS place_slug, p.name AS place_name, p.name_zh AS place_name_zh,
       p.latitude, p.longitude
@@ -355,24 +311,22 @@ export async function getJourneyDetail(
     WHERE v.journey_id = ?1
     ORDER BY v.sequence, v.id
   `).bind(journey.id).all<JourneyVisitRow>();
-  const visits = results
-    .map((row) => ({
+  return {
+    journey,
+    visits: results.map((row) => ({
       ...toVisit(row),
       placeSlug: row.place_slug,
       placeName: row.place_name,
       placeNameZh: row.place_name_zh,
       latitude: row.latitude,
       longitude: row.longitude,
-    }))
-    // ORDER BY v.sequence, v.id guarantees order, but sort defensively so the
-    // route list and mileage.legs can never misalign (handoff §5.2).
-    .sort((a, b) => a.sequence - b.sequence || a.id - b.id);
-  return { journey, visits, mileage: journeyMileage(visits) };
+    })),
+  };
 }
 
 export async function listTimeline(db: D1Database): Promise<TimelineVisit[]> {
   const { results } = await db.prepare(`
-    SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.transport_mode, v.notes,
+    SELECT v.id, v.place_id, v.journey_id, v.visited_at, v.sequence, v.notes,
       v.created_at, v.updated_at,
       p.slug AS place_slug, p.name AS place_name, p.name_zh AS place_name_zh,
       p.latitude, p.longitude,

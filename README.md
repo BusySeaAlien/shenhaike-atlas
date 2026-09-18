@@ -98,7 +98,6 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 - Journey 列表、新建、编辑，以及删除前的级联影响确认。
 - Journey 内添加、修改、移除 Visit，并用上下按钮原子调整完整顺序。
 - Wishlist 列表、新建、编辑、删除，以及一键 Promote 为正式 Place（生成 slug、重算行政归属、在单个 batch 内原子删除愿望项）。
-- Visit 增加到达交通方式（plane/train/ship/car/bus/walk/other），旅程首站不显示；保存时首站值在数据层强制置空。
 - 保存期间禁用重复提交；失败保留表单输入并显示字段或操作错误。
 
 ## 渲染边界
@@ -113,7 +112,6 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 - 首页 Places 只统计至少到访一次的不同地点，Journeys 只统计至少包含一次访问的旅程，Regions 按非空国家与地区组合去重。
 - Wishlist 是独立的愿望数据，不计入首页 Places/Journeys/Regions 统计与 Footprint 填色；`/wishlist/` 仅展示清单。
 - 最近地点按最后到访日期倒序排列并按地点去重；旅程分别展示不同地点数和 Visit 总数，仅在起止日期都精确到日时显示包含首尾日期的天数。
-- 旅程总里程为相邻站点间的大圆直线估算，读取时计算、不落库；少于两个站点时完全不显示里程。
 - `/journeys/` 保留空旅程；无 Visit 的地点和旅程详情显示空状态，但不会进入首页地图或已到访统计。
 - 未知 slug 返回真实 404；D1 查询失败返回不泄露内部异常的 503 页面。公开页面均提供描述、规范 URL 和 Open Graph 元数据。
 
@@ -129,7 +127,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 `/pre-home/` 301 跳转到 `/` —— 地球作为候选首页时用的是那个地址，保留跳转以免旧链接失效。
 
 - 首页地球使用 NASA GIBS 影像并署名，另叠加随时间移动的晨昏线与夜面灯光（`public/data/night-lights.json`，由 `pnpm data:night-lights` 一次性生成）。
-- D1 保存并向地图传递 WGS84 纬度、经度；不进行 GCJ-02 或其他坐标转换。旅程详情的连线仅表达访问顺序，不代表道路或 GPS 轨迹；页面展示的里程为相邻访问点之间的大圆直线估算（great-circle），不代表实际交通距离。
+- D1 保存并向地图传递 WGS84 纬度、经度；不进行 GCJ-02 或其他坐标转换。旅程详情的连线仅表达访问顺序，不代表道路、GPS 轨迹或距离。
 - 瓦片或脚本加载失败时，导航、筛选前的服务端地点列表和详情入口仍保留；禁用 JavaScript 时也可浏览全部地点。
 
 ## 首页地球的 Scope 与 View
@@ -162,8 +160,6 @@ src/
 │   │   ├── boundaries/      # 中国国境线、岛屿、南海断续线
 │   │   ├── administrative/  # 国家/省级面、行政归属解析
 │   │   └── globe-state.ts   # Scope × View 状态
-│   ├── geo.ts           # 大圆距离与旅程里程组装（读取时计算）
-│   ├── transport.ts     # 交通方式枚举与标签
 │   └── validation/      # 服务端输入校验
 ├── pages/               # 公开页面、后台与必要接口
 ├── styles/              # Atlas 独立视觉系统
@@ -184,6 +180,5 @@ Atlas 从 Home 与 Lens 延续了宋体标题、克制留白、低饱和纸张�
 - Journey 内的 `sequence` 唯一。排序通过 D1 `batch()` 整体提交，任何语句失败时整批回滚。
 - 删除被 Visit 引用的 Place 会被拒绝；删除 Journey 会级联删除其 Visits，但保留 Places。
 - `atlas_wishlist_items` 是独立的愿望数据表：无 slug、无外键、不存行政编码（不参与 Footprint），创建与编辑仍按坐标解析以校验国家一致性。Promote 在单个 `batch()` 内完成 Place INSERT 与条目 DELETE。
-- `visits.transport_mode` 语义为"从上一站到达本站的交通方式"（plane/train/ship/car/bus/walk/other），首站为 NULL；展示与里程计算忽略首站值，重排后升至首站的残留值保留但同样被忽略。里程在读取时用 haversine 计算（`lib/geo.ts`），不落库。
 - 表单输入由服务端校验层检查必填值、长度、slug、真实日历日期、坐标、日期范围与外键，数据库约束和 trigger 提供最终保护。
-- `seed.sql` 包含重复访问、同一旅程重复地点、跨年旅程及空旅程，只允许通过 `db:seed:local` 导入本地环境。seed 的 visits 覆盖了部分交通方式枚举与首站 NULL；`verify-database.mjs` 对七个合法枚举逐一真实插入验证迁移 CHECK。
+- `seed.sql` 包含重复访问、同一旅程重复地点、跨年旅程及空旅程，只允许通过 `db:seed:local` 导入本地环境。

@@ -140,17 +140,6 @@ try {
     "journey range excluding visits",
     `UPDATE atlas_journeys SET start_date = '2026-08-18' WHERE slug = 'xinjiang-2026'`,
   );
-  expectFailure(
-    "invalid transport mode",
-    `INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, transport_mode)
-     VALUES (
-       (SELECT id FROM atlas_places WHERE slug = 'sayram-lake'),
-       (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'),
-       '2026-08-15',
-       90,
-       'rocket'
-     )`,
-  );
 
   execute(`
     INSERT INTO atlas_journeys (slug, name, start_date, end_date)
@@ -181,30 +170,7 @@ try {
   );
   if (orphan?.count !== 0) throw new Error("Journey deletion left orphan visits.");
 
-  // Every legal transport enum value must be accepted by the real SQLite CHECK
-  // in the migration; Vitest alone can only prove the TS validator accepts it
-  // (Wishlist & mileage handoff §10.2).
-  execute(`
-    INSERT INTO atlas_journeys (slug, name, start_date, end_date)
-    VALUES ('transport-enum-check', 'Transport Enum Check', '2026-09-01', '2026-09-30');
-    INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, transport_mode)
-    VALUES
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-01', 1, 'plane'),
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-02', 2, 'train'),
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-03', 3, 'ship'),
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-04', 4, 'car'),
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-05', 5, 'bus'),
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-06', 6, 'walk'),
-      ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'transport-enum-check'), '2026-09-07', 7, 'other');
-  `);
-  const enumModes = firstRow(
-    execute(`SELECT COUNT(DISTINCT transport_mode) AS count FROM atlas_visits WHERE transport_mode IS NOT NULL`),
-  );
-  if (enumModes?.count !== 7) {
-    throw new Error(`Transport enum CHECK accepted only ${enumModes?.count} of 7 modes.`);
-  }
-
-  process.stdout.write("Database verification passed: empty migration, seed, constraints, repeats, cascades, wishlist, and transport enum.\n");
+  process.stdout.write("Database verification passed: empty migration, seed, constraints, repeats, cascades, and wishlist.\n");
 } finally {
   if (stateDirectory.startsWith(tmpdir()) && stateDirectory.includes("atlas-d1-")) {
     rmSync(stateDirectory, { recursive: true, force: true });

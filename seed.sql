@@ -51,14 +51,14 @@ WHERE journey_id IN (
   WHERE slug IN ('xinjiang-2026', 'year-crossing-2025', 'hangzhou-return-2026')
 );
 
-INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, transport_mode, notes)
+INSERT INTO atlas_visits (place_id, journey_id, visited_at, sequence, notes)
 VALUES
-  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-14', 1, NULL, 'Departure.'),
-  ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-17', 2, 'plane', NULL),
-  ((SELECT id FROM atlas_places WHERE slug = 'xiata'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-20', 3, 'bus', NULL),
-  ((SELECT id FROM atlas_places WHERE slug = 'kalajun'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-22', 4, 'car', NULL),
-  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-24', 5, 'plane', 'Return. The same place appears twice in one journey.'),
-  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'year-crossing-2025'), '2025-12-29', 1, NULL, NULL),
-  ((SELECT id FROM atlas_places WHERE slug = 'west-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'year-crossing-2025'), '2025-12-31', 2, 'train', NULL),
-  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'year-crossing-2025'), '2026-01-03', 3, 'train', NULL),
-  ((SELECT id FROM atlas_places WHERE slug = 'west-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'hangzhou-return-2026'), '2026-04-04', 1, NULL, 'A repeat visit in another journey.');
+  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-14', 1, 'Departure.'),
+  ((SELECT id FROM atlas_places WHERE slug = 'sayram-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-17', 2, NULL),
+  ((SELECT id FROM atlas_places WHERE slug = 'xiata'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-20', 3, NULL),
+  ((SELECT id FROM atlas_places WHERE slug = 'kalajun'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-22', 4, NULL),
+  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'xinjiang-2026'), '2026-08-24', 5, 'Return. The same place appears twice in one journey.'),
+  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'year-crossing-2025'), '2025-12-29', 1, NULL),
+  ((SELECT id FROM atlas_places WHERE slug = 'west-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'year-crossing-2025'), '2025-12-31', 2, NULL),
+  ((SELECT id FROM atlas_places WHERE slug = 'shanghai-pudong-airport'), (SELECT id FROM atlas_journeys WHERE slug = 'year-crossing-2025'), '2026-01-03', 3, NULL),
+  ((SELECT id FROM atlas_places WHERE slug = 'west-lake'), (SELECT id FROM atlas_journeys WHERE slug = 'hangzhou-return-2026'), '2026-04-04', 1, 'A repeat visit in another journey.');

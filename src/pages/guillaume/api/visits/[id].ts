@@ -12,9 +12,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     const body = await readJsonObject(request);
     const input: VisitInput = {
       placeId: numberValue(body.placeId), journeyId: numberValue(body.journeyId),
-      visitedAt: stringValue(body.visitedAt), sequence: numberValue(body.sequence),
-      transportMode: optionalStringValue(body.transportMode) as VisitInput["transportMode"],
-      notes: optionalStringValue(body.notes),
+      visitedAt: stringValue(body.visitedAt), sequence: numberValue(body.sequence), notes: optionalStringValue(body.notes),
     };
     return json({ ok: true, data: await updateVisit(getDatabase(), idFromParams(params.id), input) });
   } catch (error) {
