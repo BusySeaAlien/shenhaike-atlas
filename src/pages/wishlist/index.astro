@@ -1,0 +1,29 @@
+---
+import DataFailure from "../../components/DataFailure.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getDatabase } from "../../lib/db/client";
+import { listWishlist } from "../../lib/db/public";
+
+let items: Awaited<ReturnType<typeof listWishlist>> = [];
+let failed = false;
+try {
+  items = await listWishlist(getDatabase());
+} catch {
+  failed = true;
+  Astro.response.status = 503;
+}
+---
+
+<BaseLayout title="Wishlist — Atlas" description="Atlas 的愿望清单：想去但还没去的地方。">
+  {failed ? <DataFailure /> : <div class="archive-page">
+    <header class="archive-header"><p class="eyebrow">ARCHIVE / WISHLIST</p><h1>Wishlist</h1><p>想去但还没去的地方。愿望清单不计入已到访统计。 · Wishlist items do not count toward visited statistics.</p></header>
+    {items.length ? <div class="journey-grid">{items.map((item, index) => <article class="wishlist-card">
+      <p class="card-index">{String(index + 1).padStart(2, "0")}</p>
+      <h3>{item.nameZh || item.name}</h3>
+      {item.nameZh && <p class="english-name">{item.name}</p>}
+      <p class="wishlist-location">{[item.city, item.region, item.country].filter(Boolean).join(" · ")}</p>
+      {item.description && <p class="wishlist-description">{item.description}</p>}
+      <small class="wishlist-coords">{item.latitude.toFixed(4)} · {item.longitude.toFixed(4)}</small>
+    </article>)}</div> : <p class="archive-empty">No wishlist items yet.</p>}
+  </div>}
+</BaseLayout>

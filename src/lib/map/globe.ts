@@ -1,4 +1,4 @@
-import type { MapJourneyRoute, MapJourneyStop, MapPoint } from "../../types/domain";
+import type { MapJourneyRoute, MapJourneyStop, WishlistPoint } from "../../types/domain";
 import type { ScopeMode } from "./globe-state";
 
 // The scope axis lives in globe-state.ts with the rest of the Scope x View
@@ -112,7 +112,7 @@ export function isChinaCountry(country: string): boolean {
   return CHINA_COUNTRY_NAMES.has(country.trim().toLocaleLowerCase("en"));
 }
 
-export function pointsForMode(points: MapPoint[], mode: ScopeMode): MapPoint[] {
+export function pointsForMode<T extends { country: string }>(points: T[], mode: ScopeMode): T[] {
   return mode === "china" ? points.filter((point) => isChinaCountry(point.country)) : points;
 }
 
@@ -223,5 +223,31 @@ export function journeyStopsGeoJson(route: MapJourneyRoute | undefined, mode: Sc
         coordinates: [stop.longitude, stop.latitude] as Coordinate,
       },
     })) : [],
+  };
+}
+
+/**
+ * Wishlist markers ride their own source, so they follow the same China
+ * filtering as visited points but never mix into `globe-places` (Wishlist
+ * handoff §7.4/§7.5). No clustering in v1.
+ */
+export function wishlistPointsGeoJson(items: WishlistPoint[], mode: ScopeMode) {
+  return {
+    type: "FeatureCollection" as const,
+    features: pointsForMode(items, mode).map((item) => ({
+      type: "Feature" as const,
+      id: item.id,
+      properties: {
+        id: item.id,
+        name: item.name,
+        nameZh: item.nameZh,
+        country: item.country,
+        location: item.location,
+      },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [item.longitude, item.latitude] as Coordinate,
+      },
+    })),
   };
 }

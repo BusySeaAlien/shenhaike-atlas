@@ -34,6 +34,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
       pathname.startsWith("/journeys/") ||
       pathname === "/timeline" ||
       pathname === "/timeline/" ||
+      pathname === "/wishlist" ||
+      pathname === "/wishlist/" ||
       pathname.startsWith("/places/");
     if (dynamicArchiveRoute) response.headers.set("Cache-Control", "no-store");
     return response;

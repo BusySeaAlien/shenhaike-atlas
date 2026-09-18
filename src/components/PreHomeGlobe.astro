@@ -1,17 +1,18 @@
 ---
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MapJourneyRoute, MapPoint } from "../types/domain";
+import type { MapJourneyRoute, MapPoint, WishlistPoint } from "../types/domain";
 import { isChinaCountry } from "../lib/map/globe";
 import { DEFAULT_SCOPE, DEFAULT_VIEW, captionFor } from "../lib/map/globe-state";
 
 interface Props {
   points: MapPoint[];
   routes: MapJourneyRoute[];
+  wishlist: WishlistPoint[];
 }
 
-const { points, routes } = Astro.props;
+const { points, routes, wishlist } = Astro.props;
 const years = [...new Set(points.flatMap((point) => point.years))].sort((a, b) => b.localeCompare(a));
-const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
+const payload = JSON.stringify({ points, routes, wishlist }).replaceAll("<", "\\u003c");
 ---
 
 <section class="prehome-globe" id="globe" data-prehome-globe>
@@ -23,7 +24,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     <p>去过的地点散落在地球上。选择一段旅程，查看由访问顺序连接起来的路径。</p>
   </header>
 
-  {points.length ? (
+  {(points.length || wishlist.length) ? (
     <div class="globe-experience" data-globe-entry>
       {/* Defaults come from globe-state.ts rather than being written out here,
           so the markup cannot drift from DEFAULT_SCOPE / DEFAULT_VIEW and flash
@@ -41,6 +42,11 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         <div class="globe-mode" role="group" aria-label="Place display">
           <button type="button" aria-pressed="false" data-globe-clusters>Cluster places</button>
         </div>
+        {wishlist.length > 0 && (
+          <div class="globe-mode" role="group" aria-label="Overlays">
+            <button type="button" aria-pressed="false" data-globe-wishlist>Wishlist</button>
+          </div>
+        )}
         <label data-year-selector hidden={DEFAULT_VIEW !== "footprint"}>
           <span>Year</span>
           <select data-globe-year aria-label="Filter footprint by visit year">
@@ -127,7 +133,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     hideWorldAdministrative,
     showWorldAdministrative,
   } from "../lib/map/administrative/world";
-  import { CLUSTER_RADIUS_EXPRESSION, GLOBE_STYLE, PLACE_CLUSTER_OPTIONS } from "../lib/map/config";
+  import { CLUSTER_RADIUS_EXPRESSION, GLOBE_STYLE, PLACE_CLUSTER_OPTIONS, WISHLIST_POINT_COLOR } from "../lib/map/config";
   import { filterMapPoints } from "../lib/map/points";
   import {
     CHINA_OVERVIEW_BOUNDS,
@@ -141,6 +147,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     pointsForMode,
     rotationAllowedAtZoom,
     routeAvailableInMode,
+    wishlistPointsGeoJson,
     type ScopeMode,
     type NightLightPoint,
   } from "../lib/map/globe";
@@ -152,7 +159,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     visibilityPlan,
     type ViewMode,
   } from "../lib/map/globe-state";
-  import type { MapJourneyRoute, MapPoint } from "../types/domain";
+  import type { MapJourneyRoute, MapPoint, WishlistPoint } from "../types/domain";
 
   function initializeGlobe(root: HTMLElement) {
     if (root.dataset.enhanced) return;
@@ -164,8 +171,9 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
 
     let points: MapPoint[] = [];
     let routes: MapJourneyRoute[] = [];
+    let wishlist: WishlistPoint[] = [];
     try {
-      ({ points, routes } = JSON.parse(payload.textContent || "{}") as { points: MapPoint[]; routes: MapJourneyRoute[] });
+      ({ points, routes, wishlist } = JSON.parse(payload.textContent || "{}") as { points: MapPoint[]; routes: MapJourneyRoute[]; wishlist: WishlistPoint[] });
     } catch {
       if (status) status.textContent = "Globe data unavailable. Use the archive links below.";
       return;
@@ -176,6 +184,7 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     const scopeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-scope]")];
     const viewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-globe-view]")];
     const clusterButton = root.querySelector<HTMLButtonElement>("[data-globe-clusters]");
+    const wishlistButton = root.querySelector<HTMLButtonElement>("[data-globe-wishlist]");
     const yearSelector = root.querySelector<HTMLElement>("[data-year-selector]");
     const journeySelector = root.querySelector<HTMLElement>("[data-journey-selector]");
     const caption = root.querySelector<HTMLElement>("[data-globe-caption]");
@@ -194,6 +203,12 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
     let scopeMode: ScopeMode = urlState.get("scope") === "china" ? "china" : DEFAULT_SCOPE;
     let viewMode: ViewMode = urlState.get("view") === "journey" ? "journey" : DEFAULT_VIEW;
     let clusteringEnabled = urlState.get("cluster") === "1";
+    let wishlistEnabled = urlState.get("wishlist") === "1";
+    // With no visited places the results list has nothing to show; say where
+    // the wishlist points went instead (Wishlist handoff §7.6).
+    if (resultsEmpty && points.length === 0 && wishlist.length > 0) {
+      resultsEmpty.textContent = "No visited places yet. Wishlist points are shown on the globe.";
+    }
     let selectedYear = points.some((point) => point.years.includes(urlState.get("year") ?? "")) ? urlState.get("year")! : "";
     let selectedJourney = routeBySlug.has(urlState.get("journey") ?? "") ? urlState.get("journey")! : "";
     if (yearSelect) yearSelect.value = selectedYear;
@@ -389,6 +404,14 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       }
     };
 
+    /** Wishlist is an independent overlay toggle, like clustering (handoff §7.1). */
+    const setWishlistLayersVisible = (visible: boolean) => {
+      const layerId = "wishlist-points";
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+      }
+    };
+
     /**
      * The single place Scope and View become map state (§53/§54).
      *
@@ -419,11 +442,16 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       }
       clusterButton?.classList.toggle("is-active", clusteringEnabled);
       clusterButton?.setAttribute("aria-pressed", String(clusteringEnabled));
+      wishlistButton?.classList.toggle("is-active", wishlistEnabled);
+      wishlistButton?.setAttribute("aria-pressed", String(wishlistEnabled));
 
       if (yearSelector) yearSelector.hidden = viewMode !== "footprint";
       if (journeySelector) journeySelector.hidden = !plan.journeySelector;
       if (caption) caption.textContent = captionFor(viewMode);
       setJourneyLayersVisible(plan.journeyLayers);
+      (map.getSource("globe-wishlist") as GeoJSONSource | undefined)
+        ?.setData(wishlistPointsGeoJson(wishlist, scopeMode));
+      setWishlistLayersVisible(wishlistEnabled);
 
       closePopup();
       if (selection) selection.hidden = true;
@@ -433,12 +461,13 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
       updateResults(visiblePoints);
       if (status) status.textContent = `${visiblePoints.length} filtered places shown.`;
       const nextUrl = new URL(window.location.href);
-      for (const key of ["scope", "view", "year", "journey", "cluster"]) nextUrl.searchParams.delete(key);
+      for (const key of ["scope", "view", "year", "journey", "cluster", "wishlist"]) nextUrl.searchParams.delete(key);
       if (scopeMode !== DEFAULT_SCOPE) nextUrl.searchParams.set("scope", scopeMode);
       if (viewMode !== DEFAULT_VIEW) nextUrl.searchParams.set("view", viewMode);
       if (viewMode === "footprint" && selectedYear) nextUrl.searchParams.set("year", selectedYear);
       if (viewMode === "journey" && selectedJourney) nextUrl.searchParams.set("journey", selectedJourney);
       if (clusteringEnabled) nextUrl.searchParams.set("cluster", "1");
+      if (wishlistEnabled) nextUrl.searchParams.set("wishlist", "1");
       window.history.replaceState(null, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
       pauseRotation();
 
@@ -648,6 +677,20 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
           source: "journey-stops",
           paint: { "circle-color": "#050607", "circle-radius": 7, "circle-stroke-color": "#f1f4f1", "circle-stroke-width": 2 },
         });
+        // Wishlist rides its own unclustered source: planned, not reached, so a
+        // hollow violet ring — never mixed into globe-places (handoff §7.2).
+        map.addSource("globe-wishlist", { type: "geojson", data: wishlistPointsGeoJson([], scopeMode) });
+        map.addLayer({
+          id: "wishlist-points",
+          type: "circle",
+          source: "globe-wishlist",
+          paint: {
+            "circle-radius": 2.75,
+            "circle-opacity": 0,
+            "circle-stroke-color": WISHLIST_POINT_COLOR,
+            "circle-stroke-width": 2,
+          },
+        });
 
         map.on("click", "clusters", async (event: MapLayerMouseEvent) => {
           pauseRotation();
@@ -676,7 +719,26 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         };
         map.on("click", "unclustered-point", selectFeature);
         map.on("click", "journey-stops", selectFeature);
-        for (const layer of ["clusters", "unclustered-point", "journey-stops"]) {
+        map.on("click", "wishlist-points", (event: MapLayerMouseEvent) => {
+          pauseRotation();
+          const feature = event.features?.[0];
+          if (!feature || feature.geometry.type !== "Point") return;
+          closePopup();
+          if (selection) selection.hidden = true;
+          const [longitude, latitude] = feature.geometry.coordinates;
+          const content = document.createElement("div");
+          const title = document.createElement("strong");
+          const subtitle = document.createElement("span");
+          title.textContent = String(feature.properties?.name ?? "");
+          subtitle.textContent = String(feature.properties?.location ?? "");
+          content.appendChild(title);
+          content.appendChild(subtitle);
+          popup = new maplibregl.Popup({ closeButton: false, offset: 14 })
+            .setLngLat([longitude, latitude])
+            .setDOMContent(content)
+            .addTo(map);
+        });
+        for (const layer of ["clusters", "unclustered-point", "journey-stops", "wishlist-points"]) {
           map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
           map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
         }
@@ -708,6 +770,10 @@ const payload = JSON.stringify({ points, routes }).replaceAll("<", "\\u003c");
         ...PLACE_CLUSTER_OPTIONS,
         cluster: clusteringEnabled,
       });
+      applyMapState(false);
+    });
+    wishlistButton?.addEventListener("click", () => {
+      wishlistEnabled = !wishlistEnabled;
       applyMapState(false);
     });
     yearSelect?.addEventListener("change", () => {

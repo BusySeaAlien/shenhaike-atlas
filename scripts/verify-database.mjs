@@ -71,10 +71,16 @@ try {
       SELECT
         (SELECT COUNT(*) FROM atlas_places) AS atlas_places,
         (SELECT COUNT(*) FROM atlas_journeys) AS atlas_journeys,
-        (SELECT COUNT(*) FROM atlas_visits) AS atlas_visits
+        (SELECT COUNT(*) FROM atlas_visits) AS atlas_visits,
+        (SELECT COUNT(*) FROM atlas_wishlist_items) AS atlas_wishlist_items
     `),
   );
-  if (counts?.atlas_places !== 5 || counts?.atlas_journeys !== 4 || counts?.atlas_visits !== 9) {
+  if (
+    counts?.atlas_places !== 5
+    || counts?.atlas_journeys !== 4
+    || counts?.atlas_visits !== 9
+    || counts?.atlas_wishlist_items !== 3
+  ) {
     throw new Error(`Unexpected seed counts: ${JSON.stringify(counts)}`);
   }
 
@@ -95,6 +101,16 @@ try {
     "invalid latitude",
     `INSERT INTO atlas_places (slug, name, country, latitude, longitude)
      VALUES ('invalid-coordinate', 'Invalid', 'China', 91, 1)`,
+  );
+  expectFailure(
+    "wishlist latitude out of range",
+    `INSERT INTO atlas_wishlist_items (name, country, latitude, longitude)
+     VALUES ('Invalid Wishlist', 'China', 91, 1)`,
+  );
+  expectFailure(
+    "wishlist longitude out of range",
+    `INSERT INTO atlas_wishlist_items (name, country, latitude, longitude)
+     VALUES ('Invalid Wishlist', 'China', 1, 181)`,
   );
   expectFailure(
     "missing foreign keys",
@@ -154,7 +170,7 @@ try {
   );
   if (orphan?.count !== 0) throw new Error("Journey deletion left orphan visits.");
 
-  process.stdout.write("Database verification passed: empty migration, seed, constraints, repeats, and cascades.\n");
+  process.stdout.write("Database verification passed: empty migration, seed, constraints, repeats, cascades, and wishlist.\n");
 } finally {
   if (stateDirectory.startsWith(tmpdir()) && stateDirectory.includes("atlas-d1-")) {
     rmSync(stateDirectory, { recursive: true, force: true });

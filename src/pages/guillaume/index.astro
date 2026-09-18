@@ -11,8 +11,9 @@ const counts = await db.prepare(`
   SELECT
     (SELECT COUNT(*) FROM atlas_places) AS places,
     (SELECT COUNT(*) FROM atlas_journeys) AS journeys,
-    (SELECT COUNT(*) FROM atlas_visits) AS visits
-`).first<{ places: number; journeys: number; visits: number }>();
+    (SELECT COUNT(*) FROM atlas_visits) AS visits,
+    (SELECT COUNT(*) FROM atlas_wishlist_items) AS wishlist
+`).first<{ places: number; journeys: number; visits: number; wishlist: number }>();
 const journeys = view === "journeys"
   ? (await listJourneys(db)).sort((a, b) => {
       const comparison = a.startDate.localeCompare(b.startDate);
@@ -30,8 +31,9 @@ const places = view === "places"
     <div class="metric"><dt>Places</dt><dd>{counts?.places ?? 0}</dd></div>
     <div class="metric"><dt>Journeys</dt><dd>{counts?.journeys ?? 0}</dd></div>
     <div class="metric"><dt>Visits</dt><dd>{counts?.visits ?? 0}</dd></div>
+    <div class="metric"><dt>Wishlist</dt><dd>{counts?.wishlist ?? 0}</dd></div>
   </dl>
-  <div class="quick-actions"><a class="button" href="/guillaume/places/new/">+ New Place</a><a class="button secondary" href="/guillaume/journeys/new/">+ New Journey</a></div>
+  <div class="quick-actions"><a class="button" href="/guillaume/places/new/">+ New Place</a><a class="button secondary" href="/guillaume/journeys/new/">+ New Journey</a><a class="button secondary" href="/guillaume/wishlist/new/">+ New Wishlist Item</a></div>
   <section class="admin-section">
     <nav class="record-switcher" aria-label="Choose records to view">
       <a class:list={["button", { secondary: view !== "journeys" }]} href="/guillaume/?view=journeys" aria-current={view === "journeys" ? "page" : undefined}>Journeys</a>

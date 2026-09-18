@@ -1,4 +1,4 @@
-import type { Journey, Place, Visit } from "../../types/domain";
+import type { Journey, Place, Visit, WishlistItem } from "../../types/domain";
 
 export interface PlaceRow {
   id: number;
@@ -38,6 +38,21 @@ export interface VisitRow {
   visited_at: string;
   sequence: number;
   notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WishlistItemRow {
+  id: number;
+  name: string;
+  name_zh: string | null;
+  country: string;
+  region: string | null;
+  city: string | null;
+  latitude: number;
+  longitude: number;
+  description: string | null;
+  cover: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -85,6 +100,23 @@ export function toVisit(row: VisitRow): Visit {
     visitedAt: row.visited_at,
     sequence: row.sequence,
     notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toWishlistItem(row: WishlistItemRow): WishlistItem {
+  return {
+    id: row.id,
+    name: row.name,
+    nameZh: row.name_zh,
+    country: row.country,
+    region: row.region,
+    city: row.city,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    description: row.description,
+    cover: row.cover,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

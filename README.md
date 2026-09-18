@@ -27,9 +27,11 @@ pnpm dev
 
 打开 `http://127.0.0.1:4321/`。数据库验证页位于 `http://127.0.0.1:4321/system/database/`；显示 `Database connected` 即表示页面已通过 `DB` binding 读取 local D1。
 
-公开档案包含首页地球（Scope × View × Filter）与摘要、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴和静态 `/about/`。
+公开档案包含首页地球（Scope × View × Filter）与摘要、`/places/[slug]/` 地点详情、`/journeys/` 旅程归档、`/journeys/[slug]/` 路线详情、`/timeline/` 到访时间轴、`/wishlist/` 愿望清单和静态 `/about/`。
 
 首页 Footprint 按访问年份筛选，Journey 按行程筛选，两种筛选互斥并始终按 Place 去重。地图下方同步显示精简结果列表，cluster 可进一步收窄列表；`/map/` 保留为兼容旧链接的首页地球跳转。
+
+Wishlist 以空心紫圈作为独立开关图层叠加在地球上，与 Scope × View 两个维度正交、不做聚类，China 范围只显示中国条目；已到访为 0 但清单非空时地球照常渲染，清单为空时不渲染开关。
 
 本地后台位于 `http://127.0.0.1:4321/guillaume/`。认证旁路只会在 `astro dev` 的编译期开发模式启用，默认身份为 `local@atlas.invalid`；可复制 `.dev.vars.example` 为 `.dev.vars` 修改本地显示身份。请求参数、Cookie 或 Host 头均不能开启此旁路。
 
@@ -95,6 +97,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 - Place 列表、新建、编辑和具有关联提示的删除。
 - Journey 列表、新建、编辑，以及删除前的级联影响确认。
 - Journey 内添加、修改、移除 Visit，并用上下按钮原子调整完整顺序。
+- Wishlist 列表、新建、编辑、删除，以及一键 Promote 为正式 Place（生成 slug、重算行政归属、在单个 batch 内原子删除愿望项）。
 - 保存期间禁用重复提交；失败保留表单输入并显示字段或操作错误。
 
 ## 渲染边界
@@ -107,6 +110,7 @@ Worker 优先验证 Cloudflare 注入的 `Cf-Access-Jwt-Assertion`，浏览器�
 公开查询规则如下：
 
 - 首页 Places 只统计至少到访一次的不同地点，Journeys 只统计至少包含一次访问的旅程，Regions 按非空国家与地区组合去重。
+- Wishlist 是独立的愿望数据，不计入首页 Places/Journeys/Regions 统计与 Footprint 填色；`/wishlist/` 仅展示清单。
 - 最近地点按最后到访日期倒序排列并按地点去重；旅程分别展示不同地点数和 Visit 总数，仅在起止日期都精确到日时显示包含首尾日期的天数。
 - `/journeys/` 保留空旅程；无 Visit 的地点和旅程详情显示空状态，但不会进入首页地图或已到访统计。
 - 未知 slug 返回真实 404；D1 查询失败返回不泄露内部异常的 503 页面。公开页面均提供描述、规范 URL 和 Open Graph 元数据。
@@ -175,5 +179,6 @@ Atlas 从 Home 与 Lens 延续了宋体标题、克制留白、低饱和纸张�
 - 同一 Place 可以在同一或不同 Journey 中重复访问；不设置 Place/Journey 组合唯一约束。
 - Journey 内的 `sequence` 唯一。排序通过 D1 `batch()` 整体提交，任何语句失败时整批回滚。
 - 删除被 Visit 引用的 Place 会被拒绝；删除 Journey 会级联删除其 Visits，但保留 Places。
+- `atlas_wishlist_items` 是独立的愿望数据表：无 slug、无外键、不存行政编码（不参与 Footprint），创建与编辑仍按坐标解析以校验国家一致性。Promote 在单个 `batch()` 内完成 Place INSERT 与条目 DELETE。
 - 表单输入由服务端校验层检查必填值、长度、slug、真实日历日期、坐标、日期范围与外键，数据库约束和 trigger 提供最终保护。
 - `seed.sql` 包含重复访问、同一旅程重复地点、跨年旅程及空旅程，只允许通过 `db:seed:local` 导入本地环境。

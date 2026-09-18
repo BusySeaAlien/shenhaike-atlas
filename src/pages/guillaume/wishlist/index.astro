@@ -1,0 +1,31 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { listWishlistItems } from "../../../lib/db/wishlist";
+
+const items = await listWishlistItems(getDatabase());
+---
+
+<AdminLayout title="Wishlist">
+  <div class="admin-heading"><div><p class="eyebrow">ARCHIVE / WISHLIST</p><h1>Wishlist</h1></div><a class="button" href="/guillaume/wishlist/new/">+ New Wishlist Item</a></div>
+  {items.length ? <table class="data-table"><thead><tr><th>Wishlist item</th><th>Region</th><th>Coordinates</th><th>Updated</th><th></th></tr></thead><tbody>{items.map((item) => <tr><td>{item.nameZh || item.name}{item.nameZh && <><br /><small>{item.name}</small></>}</td><td>{[item.city, item.region, item.country].filter(Boolean).join(" · ")}</td><td>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</td><td>{item.updatedAt}</td><td><a class="button secondary" href={`/guillaume/wishlist/${item.id}/`}>Edit</a> <button class="button" type="button" data-promote-wishlist data-action={`/guillaume/api/wishlist/${item.id}/promote/`}>Promote</button></td></tr>)}</tbody></table> : <p class="empty-admin">No wishlist items yet. Record the next place you want to visit.</p>}
+</AdminLayout>
+
+<script>
+  interface ApiResult { ok: boolean; data?: { id?: number }; error?: { message?: string } }
+  document.querySelectorAll<HTMLButtonElement>("[data-promote-wishlist]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!window.confirm("Promote to a place? The wishlist item will be removed. Add a visit separately after arrival.")) return;
+      button.disabled = true;
+      try {
+        const response = await fetch(button.dataset.action ?? "", { method: "POST" });
+        const result = await response.json() as ApiResult;
+        if (!response.ok || !result.data?.id) throw new Error(result.error?.message ?? "Promote failed");
+        window.location.assign(`/guillaume/places/${result.data.id}/`);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Promote failed");
+        button.disabled = false;
+      }
+    });
+  });
+</script>

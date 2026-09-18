@@ -46,6 +46,14 @@ export const PLACE_CLUSTER_OPTIONS = {
   clusterMaxZoom: 13,
 } as const;
 
+/**
+ * Wishlist markers draw as hollow rings in this violet. Chosen against the
+ * globe palette: amber collides with the night-lights glow, green vanishes
+ * into Blue Marble vegetation and the `#d5ddd8` line family, blue into the
+ * ocean raster (Wishlist handoff §7.3).
+ */
+export const WISHLIST_POINT_COLOR = "#b9aef0";
+
 export const CLUSTER_RADIUS_EXPRESSION: ExpressionSpecification = [
   "interpolate",
   ["linear"],

@@ -32,6 +32,19 @@ ON CONFLICT(slug) DO UPDATE SET
   description = excluded.description,
   updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
 
+-- Wishlist items have no slug, so scoped delete-by-name is the idempotency
+-- mechanism (the visits precedent). country must match what the coordinates
+-- resolve to, or promote would always fail the country-consistency check:
+-- Faroe Islands resolves to FRO, so "Denmark" (DNK) would be rejected.
+DELETE FROM atlas_wishlist_items
+WHERE name IN ('Faroe Islands', 'Guilin', 'Lisbon');
+
+INSERT INTO atlas_wishlist_items (name, name_zh, country, region, city, latitude, longitude, description)
+VALUES
+  ('Faroe Islands', '法罗群岛', 'Faroe Islands', NULL, NULL, 62.0079, -6.7901, '丹麦属地，北大西洋群岛。'),
+  ('Guilin', '桂林', 'China', 'Guangxi', 'Guilin', 25.2736, 110.2900, '山水间的下一次出发。'),
+  ('Lisbon', '里斯本', 'Portugal', NULL, 'Lisbon', 38.7223, -9.1393, NULL);
+
 DELETE FROM atlas_visits
 WHERE journey_id IN (
   SELECT id FROM atlas_journeys

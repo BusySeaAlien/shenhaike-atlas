@@ -1,0 +1,108 @@
+---
+import type { WishlistItem } from "../../types/domain";
+import { COUNTRY_OPTIONS } from "../../lib/countries";
+
+interface Props { item?: WishlistItem }
+const { item } = Astro.props;
+const action = item ? `/guillaume/api/wishlist/${item.id}/` : "/guillaume/api/wishlist/";
+const method = item ? "PATCH" : "POST";
+---
+
+<form class="admin-form" data-wishlist-form data-action={action} data-method={method} novalidate>
+  <div class="field-grid">
+    <div class="field"><label for="name">English name *</label><input id="name" name="name" required value={item?.name} /><span class="field-error" data-error="name"></span></div>
+    <div class="field"><label for="nameZh">中文名</label><input id="nameZh" name="nameZh" value={item?.nameZh ?? ""} /><span class="field-error" data-error="nameZh"></span></div>
+    <div class="field"><label for="country">Country *</label><select id="country" name="country" required><option value="" disabled selected={!item?.country}>请选择国家</option>{COUNTRY_OPTIONS.map((country) => <option value={country.name} selected={item?.country === country.name}>{country.nameZh}（{country.name}）</option>)}</select><span class="field-error" data-error="country"></span></div>
+    <div class="field"><label for="region">Region</label><input id="region" name="region" value={item?.region ?? ""} /><span class="field-error" data-error="region"></span></div>
+    <div class="field"><label for="city">City</label><input id="city" name="city" value={item?.city ?? ""} /><span class="field-error" data-error="city"></span></div>
+    <div class="field"><label for="latitude">Latitude *</label><input id="latitude" name="latitude" type="number" step="any" required value={item?.latitude} /><span class="field-error" data-error="latitude"></span></div>
+    <div class="field"><label for="longitude">Longitude *</label><input id="longitude" name="longitude" type="number" step="any" required value={item?.longitude} /><span class="field-error" data-error="longitude"></span></div>
+    <div class="field wide"><label for="cover">Cover URL</label><input id="cover" name="cover" value={item?.cover ?? ""} /><span class="field-error" data-error="cover"></span></div>
+    <div class="field wide"><label for="description">Description</label><textarea id="description" name="description">{item?.description ?? ""}</textarea><span class="field-error" data-error="description"></span></div>
+  </div>
+  <div class="form-actions"><button type="submit">{item ? "Save wishlist item" : "Create wishlist item"}</button><a class="button secondary" href="/guillaume/wishlist/">Cancel</a><span class="form-status" role="status"></span></div>
+</form>
+
+{
+  item && (
+    <div class="danger-zone">
+      <p>Promote 会把这条愿望清单升级为正式地点（生成网址标识并解析行政归属），并从清单中移除。</p>
+      <button class="button" type="button" data-promote-wishlist data-action={`/guillaume/api/wishlist/${item.id}/promote/`}>Promote to place</button>
+      <button class="danger" type="button" data-delete-wishlist data-action={`/guillaume/api/wishlist/${item.id}/`}>Delete wishlist item</button>
+    </div>
+  )
+}
+
+<script>
+  interface ApiResult { ok: boolean; data?: { id?: number }; error?: { message?: string; fields?: Record<string, string> } }
+  const form = document.querySelector<HTMLFormElement>("[data-wishlist-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>(".form-status");
+    form.querySelectorAll<HTMLElement>("[data-error]").forEach((item) => (item.textContent = ""));
+    if (submit) submit.disabled = true;
+    if (status) status.textContent = "Saving…";
+    const data = new FormData(form);
+    const numberOrNull = (value: FormDataEntryValue | null): number | null => {
+      const text = typeof value === "string" ? value.trim() : "";
+      return text ? Number(text) : null;
+    };
+    const payload = {
+      name: data.get("name"), nameZh: data.get("nameZh"),
+      country: data.get("country"), region: data.get("region"), city: data.get("city"),
+      latitude: numberOrNull(data.get("latitude")), longitude: numberOrNull(data.get("longitude")),
+      cover: data.get("cover"), description: data.get("description"),
+    };
+    try {
+      const response = await fetch(form.dataset.action ?? "", {
+        method: form.dataset.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) {
+        for (const [field, message] of Object.entries(result.error?.fields ?? {})) {
+          const target = form.querySelector<HTMLElement>(`[data-error="${field}"]`);
+          if (target) target.textContent = String(message);
+        }
+        throw new Error(result.error?.message ?? "Save failed");
+      }
+      if (status) status.textContent = "Saved";
+      window.location.assign("/guillaume/wishlist/");
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-delete-wishlist]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Delete this wishlist item? This cannot be undone.")) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(button.dataset.action ?? "", { method: "DELETE" });
+      const result = await response.json() as ApiResult;
+      if (!response.ok) throw new Error(result.error?.message ?? "Delete failed");
+      window.location.assign("/guillaume/wishlist/");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Delete failed");
+      button.disabled = false;
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-promote-wishlist]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (!window.confirm("Promote to a place? The wishlist item will be removed. Add a visit separately after arrival.")) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(button.dataset.action ?? "", { method: "POST" });
+      const result = await response.json() as ApiResult;
+      if (!response.ok || !result.data?.id) throw new Error(result.error?.message ?? "Promote failed");
+      window.location.assign(`/guillaume/places/${result.data.id}/`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Promote failed");
+      button.disabled = false;
+    }
+  });
+</script>

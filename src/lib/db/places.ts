@@ -1,6 +1,7 @@
 import type { Place, PlaceInput } from "../../types/domain";
 import { countryCodeForName } from "../countries";
 import { resolveAdministrativeLocation } from "../map/administrative/location";
+import type { AdministrativeLocation } from "../map/administrative/location";
 import { validatePlaceInput } from "../validation/domain";
 import { DataError, isUniqueConstraintError } from "./errors";
 import type { PlaceRow } from "./rows";
@@ -45,6 +46,41 @@ async function uniquePlaceSlug(db: D1Database, name: string): Promise<string> {
   throw new DataError("conflict", "无法生成唯一的网址标识");
 }
 
+/**
+ * Derived from the coordinates, never taken from the request body (§14-§19).
+ *
+ * Shared by create/update/promote: a resolve that lands in a different
+ * sovereign country than the selected one usually means a pasted coordinate is
+ * wrong, so it is rejected with field errors rather than stored.
+ */
+export function resolvePlaceLocation(value: PlaceInput): AdministrativeLocation {
+  const location = resolveAdministrativeLocation(value.longitude, value.latitude);
+  const selectedCountryCode = countryCodeForName(value.country);
+  if (location.sovereignCountryCode && location.sovereignCountryCode !== selectedCountryCode) {
+    throw new DataError("validation", "国家与坐标不一致", {
+      country: "所选国家与经纬度对应的国家不一致",
+      longitude: "请检查经度是否完整",
+    });
+  }
+  return location;
+}
+
+/**
+ * Everything a place INSERT needs except the write itself. Extracted so
+ * `promoteWishlistItem` can build the row through the same validation, slug
+ * and administrative-resolution path and commit it atomically in one batch
+ * (Wishlist handoff §4).
+ */
+export async function preparePlaceInsert(
+  db: D1Database,
+  input: PlaceInput,
+): Promise<{ value: PlaceInput; slug: string; location: AdministrativeLocation }> {
+  const value = validated(input);
+  const slug = await uniquePlaceSlug(db, value.name);
+  const location = resolvePlaceLocation(value);
+  return { value, slug, location };
+}
+
 export async function listPlaces(db: D1Database): Promise<Place[]> {
   const { results } = await db
     .prepare(`SELECT ${PLACE_COLUMNS} FROM atlas_places ORDER BY name COLLATE NOCASE, id`)
@@ -69,17 +105,7 @@ export async function getPlaceById(db: D1Database, id: number): Promise<Place | 
 }
 
 export async function createPlace(db: D1Database, input: PlaceInput): Promise<Place> {
-  const value = validated(input);
-  const slug = await uniquePlaceSlug(db, value.name);
-  // Derived from the coordinates, never taken from the request body (§14-§19).
-  const location = resolveAdministrativeLocation(value.longitude, value.latitude);
-  const selectedCountryCode = countryCodeForName(value.country);
-  if (location.sovereignCountryCode && location.sovereignCountryCode !== selectedCountryCode) {
-    throw new DataError("validation", "国家与坐标不一致", {
-      country: "所选国家与经纬度对应的国家不一致",
-      longitude: "请检查经度是否完整",
-    });
-  }
+  const { value, slug, location } = await preparePlaceInsert(db, input);
   try {
     const row = await db
       .prepare(`
@@ -121,14 +147,7 @@ export async function updatePlace(
   // Recomputed on every edit rather than only when the coordinates differ: the
   // polygon data can change under a place too, and a redundant resolve is cheap
   // (§59).
-  const location = resolveAdministrativeLocation(value.longitude, value.latitude);
-  const selectedCountryCode = countryCodeForName(value.country);
-  if (location.sovereignCountryCode && location.sovereignCountryCode !== selectedCountryCode) {
-    throw new DataError("validation", "国家与坐标不一致", {
-      country: "所选国家与经纬度对应的国家不一致",
-      longitude: "请检查经度是否完整",
-    });
-  }
+  const location = resolvePlaceLocation(value);
   try {
     const row = await db
       .prepare(`

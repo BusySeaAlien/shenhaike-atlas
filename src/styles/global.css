@@ -142,15 +142,22 @@ code { padding: .15em .35em; background: var(--wash); }
 .english-name { margin: 5px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .04em; }
 .journey-dates { display: flex; flex-wrap: wrap; gap: 9px; margin: 26px 0 7px; color: var(--muted); font-size: 11px; }
 .journey-counts { margin: 0; color: var(--muted); font-size: 10px; }
+.wishlist-card { min-width: 0; padding: 25px 26px 30px 0; }
+.wishlist-card + .wishlist-card { padding-left: 26px; border-left: 1px solid var(--line); }
+.wishlist-card h3 { margin: 0; font-family: var(--serif); font-size: clamp(23px, 3vw, 35px); font-weight: 400; line-height: 1.25; }
+.wishlist-location { margin: 22px 0 0; color: var(--muted); font-size: 11px; }
+.wishlist-description { margin: 12px 0 0; color: var(--ink); font-size: 13px; line-height: 1.7; }
+.wishlist-coords { display: block; margin-top: 12px; color: var(--muted); font-size: 10px; }
 .place-list { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
 .place-list li { display: grid; grid-template-columns: 44px minmax(180px, 1.1fr) minmax(180px, 1fr) auto; gap: 18px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--line); }
 .place-list li > span, .place-list time { color: var(--muted); font-size: 10px; }
 .place-list a { font-family: var(--serif); font-size: 20px; text-decoration: none; }
 .place-list small { display: block; margin-top: 3px; color: var(--muted); }
 .place-list p { margin: 0; color: var(--muted); font-size: 11px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 48px 0 66px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); padding: 48px 0 66px; }
 .stats div { display: grid; gap: 9px; text-align: center; }
 .stats div + div { border-left: 1px solid var(--line); }
+.stats-link { display: grid; gap: 9px; color: inherit; text-decoration: none; }
 .stats strong { font-family: Georgia, serif; font-size: 48px; font-weight: 400; }
 .stats span { color: var(--muted); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
 .archive-page, .detail-page { padding: clamp(65px, 10vw, 120px) 0 100px; }
@@ -226,6 +233,7 @@ code { padding: .15em .35em; background: var(--wash); }
   .map-runtime-status { right: 8px; bottom: 31px; max-width: none; }
   .journey-grid, .year-group .journey-grid { grid-template-columns: 1fr; }
   .journey-card, .journey-card + .journey-card { padding: 24px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+  .wishlist-card, .wishlist-card + .wishlist-card { padding: 24px 0; border-left: 0; border-bottom: 1px solid var(--line); }
   .place-list li { grid-template-columns: 34px 1fr auto; gap: 11px; }
   .place-list li > p { display: none; }
   .stats strong { font-size: 38px; }

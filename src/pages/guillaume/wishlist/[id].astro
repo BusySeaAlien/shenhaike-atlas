@@ -1,0 +1,14 @@
+---
+import WishlistForm from "../../../components/admin/WishlistForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../../lib/db/client";
+import { getWishlistItemById } from "../../../lib/db/wishlist";
+
+const id = Number(Astro.params.id);
+const item = Number.isInteger(id) && id > 0 ? await getWishlistItemById(getDatabase(), id) : null;
+if (!item) Astro.response.status = 404;
+---
+
+<AdminLayout title={item ? `Edit ${item.name}` : "Wishlist item not found"}>
+  {item ? <><div class="admin-heading"><div><p class="eyebrow">WISHLIST / EDIT</p><h1>{item.nameZh || item.name}</h1></div></div><WishlistForm item={item} /></> : <p class="empty-admin">Wishlist item not found.</p>}
+</AdminLayout>

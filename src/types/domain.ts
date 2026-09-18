@@ -42,6 +42,39 @@ export interface PlaceInput {
   cover?: string | null;
 }
 
+/**
+ * A place the owner wants to visit but has not yet. Deliberately its own
+ * entity, not a Place: visited-ness defines `places`, and a wishlist item has
+ * no visits by definition (Wishlist handoff §2.1). Field-shaped like Place so
+ * promote can hand the values straight to `createPlace`.
+ */
+export interface WishlistItem {
+  id: number;
+  name: string;
+  nameZh: string | null;
+  country: string;
+  region: string | null;
+  city: string | null;
+  latitude: number;
+  longitude: number;
+  description: string | null;
+  cover: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WishlistItemInput {
+  name: string;
+  nameZh?: string | null;
+  country: string;
+  region?: string | null;
+  city?: string | null;
+  latitude: number;
+  longitude: number;
+  description?: string | null;
+  cover?: string | null;
+}
+
 export interface Journey {
   id: number;
   slug: string;
@@ -133,6 +166,21 @@ export interface MapJourneyOption {
   nameZh: string | null;
 }
 
+/**
+ * Globe payload for wishlist items. Deliberately not a `MapPoint`: no href, no
+ * admin codes, no visit aggregation — mixing it into `MapPoint[]` would
+ * silently inflate the Footprint fill (Wishlist handoff §7.5).
+ */
+export interface WishlistPoint {
+  id: string;
+  name: string;
+  nameZh: string | null;
+  country: string;
+  location: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface MapArchiveData {
   points: MapPoint[];
   years: string[];
@@ -178,9 +226,11 @@ export interface HomeData {
     places: number;
     journeys: number;
     regions: number;
+    wishlist: number;
   };
 }
 
 export interface PreHomeData extends HomeData {
   routes: MapJourneyRoute[];
+  wishlist: WishlistPoint[];
 }

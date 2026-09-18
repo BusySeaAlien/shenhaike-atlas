@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MapJourneyRoute, MapPoint } from "../../types/domain";
+import type { MapJourneyRoute, MapPoint, WishlistPoint } from "../../types/domain";
 import {
   CHINA_OVERVIEW_BOUNDS,
   WORLD_CAMERA,
@@ -13,6 +13,7 @@ import {
   routeAvailableInMode,
   splitAntimeridian,
   subsolarPoint,
+  wishlistPointsGeoJson,
 } from "./globe";
 
 const route: MapJourneyRoute = {
@@ -78,6 +79,21 @@ describe("globe data helpers", () => {
     ] as MapPoint[];
     expect(pointsForMode(points, "china").map(({ id }) => id)).toEqual(["1"]);
     expect(routeAvailableInMode(route, "china")).toBe(true);
+  });
+
+  it("builds wishlist markers with China filtering and full properties", () => {
+    const wishlist: WishlistPoint[] = [
+      { id: "1", name: "桂林", nameZh: "桂林", country: "China", location: "Guilin · Guangxi · China", latitude: 25.2736, longitude: 110.29 },
+      { id: "2", name: "Lisbon", nameZh: "里斯本", country: "Portugal", location: "Lisbon · Portugal", latitude: 38.7223, longitude: -9.1393 },
+    ];
+    const world = wishlistPointsGeoJson(wishlist, "world");
+    expect(world.features).toHaveLength(2);
+    expect(world.features[0]?.properties).toMatchObject({ id: "1", country: "China" });
+    expect(world.features[0]?.geometry.coordinates).toEqual([110.29, 25.2736]);
+
+    const china = wishlistPointsGeoJson(wishlist, "china");
+    expect(china.features).toHaveLength(1);
+    expect(china.features[0]?.properties?.name).toBe("桂林");
   });
 
   it("does not connect Chinese stops across an omitted foreign visit", () => {

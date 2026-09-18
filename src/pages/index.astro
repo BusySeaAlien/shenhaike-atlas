@@ -21,7 +21,7 @@ try {
   colorScheme="dark"
 >
   {data ? <div class="prehome-page">
-    <PreHomeGlobe points={data.mapPoints} routes={data.routes} />
+    <PreHomeGlobe points={data.mapPoints} routes={data.routes} wishlist={data.wishlist} />
 
     <section class="home-section" aria-labelledby="home-journeys-heading">
       <div class="section-heading"><div><p class="eyebrow">JOURNEYS / RECENT</p><h2 id="home-journeys-heading">Journeys</h2></div><a href="/journeys/">View all ↗</a></div>
@@ -37,6 +37,7 @@ try {
       <div><strong>{data.stats.places}</strong><span>Places</span></div>
       <div><strong>{data.stats.journeys}</strong><span>Journeys</span></div>
       <div><strong>{data.stats.regions}</strong><span>Regions</span></div>
+      <div><a class="stats-link" href="/wishlist/"><strong>{data.stats.wishlist}</strong><span>Wishlist</span></a></div>
     </section>
   </div> : <DataFailure />}
   <span class="footer-attribution" slot="footer-content">

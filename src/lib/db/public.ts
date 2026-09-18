@@ -11,12 +11,14 @@ import type {
   PlaceVisit,
   TimelineVisit,
   VisitedPlaceSummary,
+  WishlistItem,
 } from "../../types/domain";
 import { inclusiveDayCount } from "../dates";
 import { getJourneyBySlug } from "./journeys";
 import { getPlaceBySlug } from "./places";
 import type { JourneyRow, PlaceRow, VisitRow } from "./rows";
 import { toJourney, toPlace, toVisit } from "./rows";
+import { listWishlistItems } from "./wishlist";
 
 interface VisitedPlaceRow extends PlaceRow {
   last_visited_at: string;
@@ -177,8 +179,12 @@ export async function getMapArchiveData(db: D1Database): Promise<MapArchiveData>
   };
 }
 
+export async function listWishlist(db: D1Database): Promise<WishlistItem[]> {
+  return listWishlistItems(db);
+}
+
 export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
-  const [home, routeRows] = await Promise.all([
+  const [home, routeRows, wishlistItems] = await Promise.all([
     getHomeData(db),
     db.prepare(`
       SELECT v.id AS visit_id, v.visited_at, v.sequence,
@@ -191,6 +197,7 @@ export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
       INNER JOIN atlas_places p ON p.id = v.place_id
       ORDER BY j.start_date DESC, j.id DESC, v.sequence, v.id
     `).all<PreHomeVisitRow>(),
+    listWishlistItems(db),
   ]);
 
   const routeMap = new Map<string, MapJourneyRoute>();
@@ -220,13 +227,26 @@ export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
     });
   }
 
-  return { ...home, routes: [...routeMap.values()] };
+  const wishlist: PreHomeData["wishlist"] = wishlistItems.map((item) => ({
+    id: String(item.id),
+    name: item.nameZh || item.name,
+    nameZh: item.nameZh,
+    country: item.country,
+    location: [item.city, item.region, item.country].filter(Boolean).join(" · "),
+    latitude: item.latitude,
+    longitude: item.longitude,
+  }));
+
+  return { ...home, routes: [...routeMap.values()], wishlist };
 }
 
 export async function getHomeData(db: D1Database): Promise<HomeData> {
-  const recentPlaces = await listVisitedPlaces(db);
-  const journeys = await listJourneySummaries(db);
-  const map = await getMapArchiveData(db);
+  const [recentPlaces, journeys, map, wishlistCount] = await Promise.all([
+    listVisitedPlaces(db),
+    listJourneySummaries(db),
+    getMapArchiveData(db),
+    db.prepare("SELECT COUNT(*) AS count FROM atlas_wishlist_items").first<{ count: number }>(),
+  ]);
   const visitedJourneys = journeys.filter((journey) => journey.visitCount > 0);
   const regions = new Set(
     recentPlaces
@@ -241,6 +261,7 @@ export async function getHomeData(db: D1Database): Promise<HomeData> {
       places: recentPlaces.length,
       journeys: visitedJourneys.length,
       regions: regions.size,
+      wishlist: wishlistCount?.count ?? 0,
     },
   };
 }
