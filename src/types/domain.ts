@@ -174,6 +174,7 @@ export interface MapJourneyOption {
 export interface WishlistPoint {
   id: string;
   name: string;
+  nameEn: string;
   nameZh: string | null;
   country: string;
   countryCode: string | null;

@@ -33,6 +33,17 @@ try {
       {data.recentPlaces.length ? <ol class="place-list">{data.recentPlaces.map((place, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><div><a href={`/places/${place.slug}/`}>{place.nameZh || place.name}</a>{place.nameZh && <small>{place.name}</small>}</div><p>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</p><time datetime={place.lastVisitedAt}>{place.lastVisitedAt}</time></li>)}</ol> : <p class="archive-empty">No visited places yet.</p>}
     </section>
 
+    <section class="home-section" aria-labelledby="home-wishlist-heading">
+      <div class="section-heading"><div><p class="eyebrow">WISHLIST / NEXT</p><h2 id="home-wishlist-heading">Wishlist</h2></div><a href="/wishlist/">View all ↗</a></div>
+      {data.wishlist.length ? <div class="journey-grid">{data.wishlist.slice(0, 3).map((item, index) => <article class="wishlist-card">
+        <p class="card-index">{String(index + 1).padStart(2, "0")}</p>
+        <h3>{item.name}</h3>
+        {item.nameZh && <p class="english-name">{item.nameEn}</p>}
+        <p class="wishlist-location">{item.location}</p>
+        <small class="wishlist-coords">{item.latitude.toFixed(4)} · {item.longitude.toFixed(4)}</small>
+      </article>)}</div> : <p class="archive-empty">No wishlist items yet.</p>}
+    </section>
+
     <section class="stats" aria-label="Archive statistics">
       <div><strong>{data.stats.places}</strong><span>Places</span></div>
       <div><strong>{data.stats.journeys}</strong><span>Journeys</span></div>

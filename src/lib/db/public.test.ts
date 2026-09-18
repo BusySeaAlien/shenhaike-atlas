@@ -67,6 +67,7 @@ describe("getPreHomeData wishlist isolation", () => {
       {
         id: "1",
         name: "法罗群岛",
+        nameEn: "Faroe Islands",
         nameZh: "法罗群岛",
         country: "Faroe Islands",
         countryCode: "FRO",
@@ -77,6 +78,7 @@ describe("getPreHomeData wishlist isolation", () => {
       {
         id: "2",
         name: "桂林",
+        nameEn: "Guilin",
         nameZh: "桂林",
         country: "China",
         countryCode: "CHN",

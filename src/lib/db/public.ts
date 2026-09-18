@@ -231,6 +231,7 @@ export async function getPreHomeData(db: D1Database): Promise<PreHomeData> {
   const wishlist: PreHomeData["wishlist"] = wishlistItems.map((item) => ({
     id: String(item.id),
     name: item.nameZh || item.name,
+    nameEn: item.name,
     nameZh: item.nameZh,
     country: item.country,
     countryCode: countryCodeForName(item.country),
