@@ -1,6 +1,7 @@
-import type { JourneyInput, PlaceInput, VisitInput } from "../../types/domain";
+import type { JourneyInput, PlaceInput, TransportMode, VisitInput } from "../../types/domain";
 import { isCountryName } from "../countries";
 import { dateBounds, isPartialDate } from "../dates";
+import { isTransportMode } from "../transport";
 import type { ValidationResult } from "./result";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -115,13 +116,18 @@ export function validateJourneyInput(input: JourneyInput): ValidationResult<Jour
 export function validateVisitInput(input: VisitInput): ValidationResult<VisitInput> {
   const errors: Record<string, string> = {};
   const notes = optionalText(input.notes);
+  // The API passes the raw value through for validation; `""`/null/undefined
+  // all mean "no recorded leg" (handoff §9).
+  const raw = input.transportMode as TransportMode | "" | null | undefined;
+  const transportMode = raw == null || raw === "" ? null : raw;
 
   if (!Number.isInteger(input.placeId) || input.placeId < 1) errors.placeId = "地点不存在";
   if (!Number.isInteger(input.journeyId) || input.journeyId < 1) errors.journeyId = "旅程不存在";
   if (!isPartialDate(input.visitedAt)) errors.visitedAt = "请填写 YYYY、YYYY-MM 或 YYYY-MM-DD";
   if (!Number.isInteger(input.sequence) || input.sequence < 1) errors.sequence = "顺序必须是正整数";
+  if (transportMode !== null && !isTransportMode(transportMode)) errors.transportMode = "请选择有效的交通方式";
   checkOptionalLength(notes, "notes", 3000, errors);
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: { ...input, notes } };
+  return { ok: true, value: { ...input, notes, transportMode } };
 }

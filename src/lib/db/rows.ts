@@ -37,6 +37,7 @@ export interface VisitRow {
   journey_id: number;
   visited_at: string;
   sequence: number;
+  transport_mode: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -99,6 +100,9 @@ export function toVisit(row: VisitRow): Visit {
     journeyId: row.journey_id,
     visitedAt: row.visited_at,
     sequence: row.sequence,
+    // `?? null` so a query that forgets the column degrades to "unrecorded"
+    // instead of smuggling `undefined` into display (handoff §9).
+    transportMode: (row.transport_mode as Visit["transportMode"]) ?? null,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

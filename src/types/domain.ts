@@ -98,12 +98,31 @@ export interface JourneyInput {
   cover?: string | null;
 }
 
+export type TransportMode = "plane" | "train" | "ship" | "car" | "bus" | "walk" | "other";
+
+/**
+ * Great-circle mileage assembled at read time (never stored): the leg arriving
+ * at each stop after the first, plus a total and a per-mode breakdown.
+ * `legs[i]` is the leg that arrives at the stop at index `i + 1`.
+ */
+export interface JourneyMileage {
+  totalKm: number;
+  byMode: Array<{ mode: TransportMode | null; km: number }>;
+  legs: Array<{ mode: TransportMode | null; km: number }>;
+}
+
 export interface Visit {
   id: number;
   placeId: number;
   journeyId: number;
   visitedAt: string;
   sequence: number;
+  /**
+   * How this stop was reached from the previous one. `null` on a journey's
+   * first stop (no arriving leg) and whenever unrecorded; mileage and display
+   * ignore a first stop's value.
+   */
+  transportMode: TransportMode | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -114,6 +133,7 @@ export interface VisitInput {
   journeyId: number;
   visitedAt: string;
   sequence: number;
+  transportMode?: TransportMode | null;
   notes?: string | null;
 }
 
@@ -198,6 +218,8 @@ export interface JourneySummary extends Journey {
   placeCount: number;
   visitCount: number;
   dayCount: number | null;
+  /** `null` when the journey has fewer than two stops. */
+  totalKm: number | null;
 }
 
 export interface PlaceVisit extends Visit {

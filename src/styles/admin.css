@@ -42,7 +42,7 @@ button:disabled { cursor: wait; opacity: .55; }
 .visit-list { display: grid; gap: 14px; margin-top: 22px; }
 .visit-card { display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; padding: 18px; border: 1px solid var(--line); }
 .visit-sequence { color: var(--muted); font: 18px/1 Georgia, serif; }
-.visit-form { display: grid; grid-template-columns: 1.1fr .75fr 1.4fr auto; gap: 10px; }
+.visit-form { display: grid; grid-template-columns: 1.1fr .75fr .75fr 1.4fr auto; gap: 10px; }
 .visit-form input, .visit-form select { min-width: 0; padding: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
 .visit-controls { display: flex; align-items: start; gap: 5px; }
 .visit-controls button { min-width: 34px; min-height: 34px; padding: 6px; }

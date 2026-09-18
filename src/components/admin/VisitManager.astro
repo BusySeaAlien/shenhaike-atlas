@@ -1,5 +1,6 @@
 ---
 import type { Journey, Place, Visit } from "../../types/domain";
+import { TRANSPORT_MODE_OPTIONS } from "../../lib/transport";
 
 interface Props { journey: Journey; places: Place[]; visits: Visit[] }
 const { journey, places, visits } = Astro.props;
@@ -15,6 +16,10 @@ const { journey, places, visits } = Astro.props;
         {places.map((place) => <option value={place.id}>{place.nameZh || place.name}</option>)}
       </select>
       <input name="visitedAt" inputmode="numeric" placeholder="YYYY / YYYY-MM / YYYY-MM-DD" required aria-label="Visited date" />
+      <select name="transportMode" aria-label="Transport" hidden={visits.length === 0}>
+        <option value="">—</option>
+        {TRANSPORT_MODE_OPTIONS.map((option) => <option value={option.value}>{option.labelZh}（{option.labelEn}）</option>)}
+      </select>
       <input name="notes" placeholder="Notes" aria-label="Notes" />
       <button type="submit">Add</button>
       <span class="visit-message" role="status"></span>
@@ -31,6 +36,10 @@ const { journey, places, visits } = Astro.props;
               {places.map((place) => <option value={place.id} selected={place.id === visit.placeId}>{place.nameZh || place.name}</option>)}
             </select>
             <input name="visitedAt" inputmode="numeric" placeholder="YYYY / YYYY-MM / YYYY-MM-DD" required value={visit.visitedAt} aria-label="Visited date" />
+            <select name="transportMode" aria-label="Transport" hidden={index === 0}>
+              <option value="" selected={visit.transportMode === null}>—</option>
+              {TRANSPORT_MODE_OPTIONS.map((option) => <option value={option.value} selected={visit.transportMode === option.value}>{option.labelZh}（{option.labelEn}）</option>)}
+            </select>
             <input name="notes" value={visit.notes ?? ""} placeholder="Notes" aria-label="Notes" />
             <button type="submit" class="secondary">Save</button>
             <span class="visit-message" role="status"></span>
@@ -75,7 +84,8 @@ const { journey, places, visits } = Astro.props;
     try {
       await request("/guillaume/api/visits/", "POST", {
         placeId: Number(data.get("placeId")), journeyId,
-        visitedAt: data.get("visitedAt"), sequence: count + 1, notes: data.get("notes"),
+        visitedAt: data.get("visitedAt"), sequence: count + 1,
+        transportMode: data.get("transportMode") || null, notes: data.get("notes"),
       });
       window.location.reload();
     } catch (error) {
@@ -98,7 +108,7 @@ const { journey, places, visits } = Astro.props;
         await request(`/guillaume/api/visits/${form.dataset.editId}/`, "PATCH", {
           placeId: Number(data.get("placeId")), journeyId,
           visitedAt: data.get("visitedAt"), sequence: cards.indexOf(card as HTMLElement) + 1,
-          notes: data.get("notes"),
+          transportMode: data.get("transportMode") || null, notes: data.get("notes"),
         });
         if (message) message.textContent = "Saved";
       } catch (error) {

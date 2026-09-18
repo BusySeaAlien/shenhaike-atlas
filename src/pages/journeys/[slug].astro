@@ -5,6 +5,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import { inclusiveDayCount } from "../../lib/dates";
 import { getDatabase } from "../../lib/db/client";
 import { getJourneyDetail } from "../../lib/db/public";
+import { transportModeLabel } from "../../lib/transport";
 
 let detail: Awaited<ReturnType<typeof getJourneyDetail>> = null;
 let failed = false;
@@ -16,10 +17,12 @@ try {
   Astro.response.status = 503;
 }
 const journey = detail?.journey;
+const mileage = detail?.mileage ?? null;
 const placeCount = detail ? new Set(detail.visits.map((visit) => visit.placeId)).size : 0;
 const dayCount = journey ? inclusiveDayCount(journey.startDate, journey.endDate) : null;
 const placeLabel = placeCount === 1 ? "place" : "places";
 const visitLabel = detail?.visits.length === 1 ? "visit" : "visits";
+const totalKm = mileage === null ? null : Math.round(mileage.totalKm).toLocaleString("en-US");
 const title = journey ? `${journey.nameZh || journey.name} — Atlas` : failed ? "Archive unavailable — Atlas" : "Journey not found — Atlas";
 ---
 
@@ -30,12 +33,13 @@ const title = journey ? `${journey.nameZh || journey.name} — Atlas` : failed ?
       <h1>{journey.nameZh || journey.name}</h1>
       {journey.nameZh && <p class="detail-english">{journey.name}</p>}
       <p class="journey-dates"><time datetime={journey.startDate}>{journey.startDate}</time><span>—</span><time datetime={journey.endDate}>{journey.endDate}</time></p>
-      <p class="detail-coordinate">{[dayCount === null ? null : `${dayCount} ${dayCount === 1 ? "day" : "days"}`, `${placeCount} ${placeLabel}`, `${detail.visits.length} ${visitLabel}`].filter(Boolean).join(" · ")}</p>
+      <p class="detail-coordinate">{[dayCount === null ? null : `${dayCount} ${dayCount === 1 ? "day" : "days"}`, `${placeCount} ${placeLabel}`, `${detail.visits.length} ${visitLabel}`, totalKm === null ? null : `≈ ${totalKm} km`].filter(Boolean).join(" · ")}</p>
     </header>
     {journey.description && <div class="detail-description"><p>{journey.description}</p></div>}
     <section class="route-section" aria-labelledby="route-heading">
       <div class="section-heading"><div><p class="eyebrow">SEQUENCE</p><h2 id="route-heading">Route</h2></div><span>Visit order · not a tracked route</span></div>
-      {detail.visits.length ? <ol class="route-list">{detail.visits.map((visit, index) => <li><span class="route-number">{String(index + 1).padStart(2, "0")}</span><div class="route-point" aria-hidden="true"></div><div><time datetime={visit.visitedAt}>{visit.visitedAt}</time><h3><a href={`/places/${visit.placeSlug}/`}>{visit.placeNameZh || visit.placeName}</a></h3>{visit.placeNameZh && <p class="english-name">{visit.placeName}</p>}{visit.notes && <p class="route-notes">{visit.notes}</p>}<small>{visit.latitude.toFixed(4)} · {visit.longitude.toFixed(4)}</small></div></li>)}</ol> : <p class="archive-empty">No visits in this journey yet.</p>}
+      {mileage && mileage.byMode.length > 0 && <p class="route-mileage">Straight-line great-circle estimate · {mileage.byMode.map((entry) => `${transportModeLabel(entry.mode)} ${Math.round(entry.km).toLocaleString("en-US")} km`).join(" · ")}</p>}
+      {detail.visits.length ? <ol class="route-list">{detail.visits.map((visit, index) => <li><span class="route-number">{String(index + 1).padStart(2, "0")}</span><div class="route-point" aria-hidden="true"></div><div><time datetime={visit.visitedAt}>{visit.visitedAt}</time><h3><a href={`/places/${visit.placeSlug}/`}>{visit.placeNameZh || visit.placeName}</a></h3>{visit.placeNameZh && <p class="english-name">{visit.placeName}</p>}{visit.notes && <p class="route-notes">{visit.notes}</p>}<small>{visit.latitude.toFixed(4)} · {visit.longitude.toFixed(4)}</small>{mileage && index > 0 && <p class="route-leg">{transportModeLabel(mileage.legs[index - 1].mode)} · {Math.round(mileage.legs[index - 1].km).toLocaleString("en-US")} km</p>}</div></li>)}</ol> : <p class="archive-empty">No visits in this journey yet.</p>}
     </section>
   </article> : <NotFound noun="Journey" />}
 </BaseLayout>

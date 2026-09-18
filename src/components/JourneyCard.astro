@@ -6,6 +6,7 @@ const { journey, index = 0 } = Astro.props;
 const duration = journey.dayCount === null ? null : `${journey.dayCount} ${journey.dayCount === 1 ? "day" : "days"}`;
 const placeLabel = journey.placeCount === 1 ? "place" : "places";
 const visitLabel = journey.visitCount === 1 ? "visit" : "visits";
+const totalKm = journey.totalKm === null ? null : `≈ ${Math.round(journey.totalKm).toLocaleString("en-US")} km`;
 ---
 
 <article class="journey-card">
@@ -13,5 +14,5 @@ const visitLabel = journey.visitCount === 1 ? "visit" : "visits";
   <h3><a href={`/journeys/${journey.slug}/`}>{journey.nameZh || journey.name}</a></h3>
   {journey.nameZh && <p class="english-name">{journey.name}</p>}
   <p class="journey-dates"><time datetime={journey.startDate}>{journey.startDate}</time><span>—</span><time datetime={journey.endDate}>{journey.endDate}</time></p>
-  <p class="journey-counts">{[duration, `${journey.placeCount} ${placeLabel}`, `${journey.visitCount} ${visitLabel}`].filter(Boolean).join(" · ")}</p>
+  <p class="journey-counts">{[duration, `${journey.placeCount} ${placeLabel}`, `${journey.visitCount} ${visitLabel}`, totalKm].filter(Boolean).join(" · ")}</p>
 </article>

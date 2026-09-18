@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TRANSPORT_MODES } from "../transport";
 import { isCalendarDate, validateJourneyInput, validatePlaceInput, validateVisitInput } from "./domain";
 
 describe("calendar date validation", () => {
@@ -101,5 +102,43 @@ describe("visit validation", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(Object.keys(result.errors)).toEqual(["placeId", "journeyId", "visitedAt", "sequence"]);
+  });
+
+  it("normalizes an empty transport mode to null and accepts a valid enum", () => {
+    const base = { placeId: 1, journeyId: 1, visitedAt: "2026-08-14", sequence: 2 };
+    expect(validateVisitInput({ ...base, transportMode: "plane" })).toEqual({
+      ok: true,
+      value: { ...base, transportMode: "plane", notes: null },
+    });
+    expect(validateVisitInput({ ...base, transportMode: null })).toEqual({
+      ok: true,
+      value: { ...base, transportMode: null, notes: null },
+    });
+    // The API forwards the raw value; `""` and `undefined` also mean "no leg".
+    const empty = validateVisitInput({ ...base, transportMode: "" } as never);
+    if (!empty.ok) throw new Error("expected ok");
+    expect(empty.value.transportMode).toBeNull();
+  });
+
+  it("rejects a transport mode outside the enum", () => {
+    const result = validateVisitInput({
+      placeId: 1,
+      journeyId: 1,
+      visitedAt: "2026-08-14",
+      sequence: 2,
+      transportMode: "rocket",
+    } as never);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.transportMode).toBe("请选择有效的交通方式");
+  });
+
+  it("accepts every mode in the shared enum list", () => {
+    // Locks TRANSPORT_MODES to the labels isTransportMode actually accepts: a
+    // mode dropped from TRANSPORT_MODE_OPTIONS would fail here even though the
+    // SQLite CHECK still accepts it (verify-database guards the SQL side).
+    const base = { placeId: 1, journeyId: 1, visitedAt: "2026-08-14", sequence: 2 };
+    for (const mode of TRANSPORT_MODES) {
+      expect(validateVisitInput({ ...base, transportMode: mode }).ok).toBe(true);
+    }
   });
 });

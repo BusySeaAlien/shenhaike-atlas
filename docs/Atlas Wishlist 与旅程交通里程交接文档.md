@@ -396,6 +396,7 @@ Wishlist 数组加在 `PreHomeData.wishlist`（`getPreHomeData` 的第三个查�
 9. **空状态**：`wishlist.length === 0` 时不渲染按钮；payload 序列化保持 `<` 转义。
 10. **`pointsForMode` 放宽**：参数改为 `readonly { country: string }[]` 必须保持 `MapPoint[]` 可直接传入（结构化类型，零调用点改动，但需 `globe.test.ts` 回归确认）。
 11. **seed 国家编码一致性**：seed 绕过应用层校验直接写库，若某条目的 country 与坐标解析码不一致（如法罗群岛写 Denmark→DNK 而解析为 FRO），条目将**永远无法 Promote**（每次点击都吃 422）。§11.1 的 seed 一致性 Gate 锁死此项。
+12. **生产部署顺序（对抗式审查追加）**：`transport_mode` 列被首页、旅程、地点、时间轴与 visits API 硬引用。部署 Worker 前**必须**先对生产 D1 应用 0005 迁移（`pnpm db:migrate:production`），否则上述页面全部 503（`?? null` 兜底只覆盖"SELECT 漏列"，不覆盖"表缺列"）；`verify-database.mjs` 在全新临时库上验证，无法替生产库把关顺序。
 
 ---
 

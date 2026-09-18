@@ -188,6 +188,8 @@ code { padding: .15em .35em; background: var(--wash); }
 .route-list h3 { margin: 9px 0 0; font-family: var(--serif); font-size: 27px; font-weight: 400; }
 .route-list h3 a { text-decoration: none; }
 .route-notes { max-width: 45em; margin: 12px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.route-mileage { margin: 10px 0 0; color: var(--muted); font: 10px/1.4 ui-monospace, monospace; letter-spacing: .06em; }
+.route-leg { margin: 8px 0 0; color: var(--muted); font: 10px/1.4 ui-monospace, monospace; letter-spacing: .06em; }
 .timeline-month { display: grid; grid-template-columns: 120px 1fr; padding: 45px 0; border-bottom: 1px solid var(--line); }
 .timeline-month h2 { margin: 0; font: 18px/1 Georgia, serif; }
 .timeline-month ol { margin: 0; padding: 0; list-style: none; }
