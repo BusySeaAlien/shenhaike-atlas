@@ -466,8 +466,8 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
           // scale so the arrow keeps a constant on-screen size at every zoom.
           // (map.unproject is avoided: on the globe it returns NaN for screen
           // points outside the planet disc.)
-          const arrowLengthPx = 11;
-          const arrowWidthPx = 5;
+          const arrowLengthPx = 6;
+          const arrowWidthPx = 2.75;
           const buildArrowPath = (flight: FlightArcDatum): LngLat[] => {
             const arrow = flight.arrow!;
             try {
@@ -505,7 +505,9 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
                 back[1] - tLng * halfWidth,
                 altitude,
               ];
-              return [wingA, tip, wingB];
+              // Close the tiny shape so its stroked edges read as a compact
+              // triangular direction marker instead of an oversized chevron.
+              return [wingA, tip, wingB, wingA];
             } catch {
               return [];
             }
@@ -526,7 +528,7 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
               getPath: (flight, info) => (info.index < arcCount ? flight.path : buildArrowPath(flight)),
               antialiasing: true,
               pickable: true,
-              getWidth: (_flight, info) => (info.index < arcCount ? 1.65 : 2),
+              getWidth: (_flight, info) => (info.index < arcCount ? 1.65 : 1.4),
               widthMinPixels: 1.25,
               widthMaxPixels: 3,
               getColor: (_flight, info) => (info.index < arcCount ? [225, 245, 242, 225] : [255, 255, 255, 255]),

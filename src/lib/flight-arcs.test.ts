@@ -5,6 +5,7 @@ import {
   ARROW_FRACTION,
   ARROW_MIN_KM,
   LANE_MAX_SPAN_DEG,
+  RIGHT_CURVE_OFFSET_DEG,
   prepareFlightArcs,
 } from "./flight-arcs";
 
@@ -99,7 +100,7 @@ describe("prepareFlightArcs lane assignment", () => {
     ]);
     for (const arc of arcs) {
       expect(arc.laneCount).toBe(1);
-      expect(arc.offsetDegrees).toBe(0);
+      expect(Math.abs(arc.offsetDegrees)).toBe(RIGHT_CURVE_OFFSET_DEG);
     }
   });
 
@@ -128,22 +129,24 @@ describe("offset arc geometry", () => {
     expect(arc.path[ARC_SEGMENTS][2]).toBeUndefined();
   });
 
-  it("shifts an equatorial east-west arc latitudinally at the midpoint", () => {
+  it("bends each direction toward its own right-hand side", () => {
     const west = airport("10", "WST", 0, 0);
     const east = airport("11", "EST", 30, 0);
-    const [arc] = prepareFlightArcs([
-      { ...flight("1", west, east, "2026-01-01"), greatCircleKm: 3335 },
-    ]);
-    // Force a single-lane offset of 0.35° to the positive side.
-    const [{ path }] = prepareFlightArcs([
+    const [eastbound, westbound] = prepareFlightArcs([
       flight("1", west, east, "2026-01-01"),
       flight("2", east, west, "2026-01-02"),
     ]);
-    const midpoint = path[ARC_SEGMENTS / 2];
-    // Offset direction is north for the positive lane: latitude > 0.
-    expect(midpoint[1]).toBeGreaterThan(0);
-    // And the un-offset arc stays exactly on the equator.
-    expect(arc.path[ARC_SEGMENTS / 2][1]).toBeCloseTo(0, 9);
+    // Heading east, right is south; heading west, right is north.
+    expect(eastbound.path[ARC_SEGMENTS / 2][1]).toBeLessThan(0);
+    expect(westbound.path[ARC_SEGMENTS / 2][1]).toBeGreaterThan(0);
+  });
+
+  it("curves a single route to the right instead of leaving it unoffset", () => {
+    const west = airport("10", "WST", 0, 0);
+    const east = airport("11", "EST", 30, 0);
+    const [arc] = prepareFlightArcs([flight("1", west, east, "2026-01-01")]);
+    expect(arc.offsetDegrees).toBe(-RIGHT_CURVE_OFFSET_DEG);
+    expect(arc.path[ARC_SEGMENTS / 2][1]).toBeLessThan(0);
   });
 
   it("stays finite for antipodal airports", () => {
@@ -158,6 +161,16 @@ describe("offset arc geometry", () => {
         expect(Number.isFinite(lat)).toBe(true);
       }
     }
+  });
+
+  it("keeps date-line crossings continuous instead of drawing around the world", () => {
+    const chicago = airport("30", "ORD", -87.9073, 41.9742);
+    const [arc] = prepareFlightArcs([flight("1", PEK, chicago, "2026-01-01", 10500)]);
+    for (let index = 1; index < arc.path.length; index++) {
+      expect(Math.abs(arc.path[index][0] - arc.path[index - 1][0])).toBeLessThan(180);
+    }
+    const finalLongitude = arc.path[ARC_SEGMENTS][0];
+    expect(((finalLongitude - chicago.longitude) % 360 + 360) % 360).toBeCloseTo(0, 9);
   });
 });
 

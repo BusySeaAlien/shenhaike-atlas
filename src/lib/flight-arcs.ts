@@ -17,8 +17,9 @@ import type { FlightArchiveAirport, FlightArchiveRoute } from "../types/domain";
 export const ARC_SEGMENTS = 100;
 export const ARROW_FRACTION = 0.7;
 export const ARROW_MIN_KM = 100;
-export const LANE_BASE_SPACING_DEG = 0.7;
-export const LANE_MAX_SPAN_DEG = 7;
+export const RIGHT_CURVE_OFFSET_DEG = 1.1;
+export const LANE_BASE_SPACING_DEG = 0.25;
+export const LANE_MAX_SPAN_DEG = 1.2;
 
 export type LngLat =
   | [longitude: number, latitude: number]
@@ -117,6 +118,14 @@ function airportPairKey(departure: FlightArchiveAirport, arrival: FlightArchiveA
   return [departure.id, arrival.id].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join("-");
 }
 
+/** Keep adjacent path vertices in the same wrapped world across the date line. */
+function unwrapLongitude(longitude: number, previousLongitude: number): number {
+  let result = longitude;
+  while (result - previousLongitude > 180) result -= 360;
+  while (result - previousLongitude < -180) result += 360;
+  return result;
+}
+
 function offsetArcPositions(
   departure: FlightArchiveAirport,
   arrival: FlightArchiveAirport,
@@ -138,7 +147,10 @@ function offsetArcPositions(
       continue;
     }
     if (i === ARC_SEGMENTS) {
-      points.push([arrival.longitude, arrival.latitude]);
+      points.push([
+        unwrapLongitude(arrival.longitude, points[points.length - 1][0]),
+        arrival.latitude,
+      ]);
       continue;
     }
     const s = i / ARC_SEGMENTS;
@@ -147,10 +159,18 @@ function offsetArcPositions(
       const displacement = offsetRad * Math.sin(Math.PI * s);
       const displaced = normalize([p[0] + normal[0] * displacement, p[1] + normal[1] * displacement, p[2] + normal[2] * displacement]);
       const [lng, lat] = toLngLat(displaced);
-      points.push([lng, lat, cruiseAltitudeMeters * Math.sin(Math.PI * s)]);
+      points.push([
+        unwrapLongitude(lng, points[points.length - 1][0]),
+        lat,
+        cruiseAltitudeMeters * Math.sin(Math.PI * s),
+      ]);
     } else {
       const [lng, lat] = toLngLat(p);
-      points.push([lng, lat, cruiseAltitudeMeters * Math.sin(Math.PI * s)]);
+      points.push([
+        unwrapLongitude(lng, points[points.length - 1][0]),
+        lat,
+        cruiseAltitudeMeters * Math.sin(Math.PI * s),
+      ]);
     }
   }
   return points;
@@ -165,8 +185,8 @@ function arrowAnchor(path: LngLat[]): FlightArcArrow | null {
 }
 
 /**
- * Lane spacing for a group: a fixed base spacing up to a few parallel arcs,
- * then compressed so large groups stay within a bounded total span.
+ * Lane spacing for a group: a compact fan around the route's right-hand
+ * curve, compressed so repeated flights never spread back across the route.
  */
 function spacingDegreesFor(laneCount: number): number {
   if (laneCount <= 1) return 0;
@@ -197,10 +217,19 @@ export function prepareFlightArcs(flights: FlightArchiveRoute[]): FlightArcDatum
     );
     const spacing = spacingDegreesFor(ordered.length);
     ordered.forEach((flight, lane) => {
+      const departureFirst = flight.departure.id.localeCompare(
+        flight.arrival.id,
+        undefined,
+        { numeric: true },
+      ) <= 0;
+      // Relative to the canonical pair normal, the right side is negative
+      // for A→B and positive for B→A. This makes every route bend toward
+      // its own starboard side and naturally separates return flights.
+      const rightOffset = departureFirst ? -RIGHT_CURVE_OFFSET_DEG : RIGHT_CURVE_OFFSET_DEG;
       lanes.set(pairKey + ":" + flight.id, {
         lane,
         laneCount: ordered.length,
-        offsetDegrees: (lane - (ordered.length - 1) / 2) * spacing,
+        offsetDegrees: rightOffset + (lane - (ordered.length - 1) / 2) * spacing,
       });
     });
   }
