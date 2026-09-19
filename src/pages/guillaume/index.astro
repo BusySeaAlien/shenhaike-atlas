@@ -4,10 +4,17 @@ import { getDatabase } from "../../lib/db/client";
 import { listJourneys } from "../../lib/db/journeys";
 import { listPlaces } from "../../lib/db/places";
 import { listWishlistItems } from "../../lib/db/wishlist";
+import { listAirports } from "../../lib/db/airports";
+import { listAirlines } from "../../lib/db/airlines";
+import { listAircraftTypes } from "../../lib/db/aircraft-types";
+import { listFlights } from "../../lib/db/flights";
+import { formatFlightDuration } from "../../lib/flight-math";
 
 const db = getDatabase();
 const requestedView = Astro.url.searchParams.get("view");
-const view = requestedView === "places" || requestedView === "wishlist" ? requestedView : "journeys";
+const recordViews = ["journeys", "places", "wishlist", "airports", "airlines", "aircraft-types", "flights"] as const;
+type RecordView = typeof recordViews[number];
+const view: RecordView = recordViews.includes(requestedView as RecordView) ? requestedView as RecordView : "journeys";
 const journeySort = Astro.url.searchParams.get("sort") === "asc" ? "asc" : "desc";
 const counts = await db.prepare(`
   SELECT
@@ -30,6 +37,10 @@ const places = view === "places"
   ? (await listPlaces(db)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   : [];
 const wishlist = view === "wishlist" ? await listWishlistItems(db) : [];
+const airports = view === "airports" ? await listAirports(db) : [];
+const airlines = view === "airlines" ? await listAirlines(db) : [];
+const aircraftTypes = view === "aircraft-types" ? await listAircraftTypes(db) : [];
+const flights = view === "flights" ? await listFlights(db) : [];
 ---
 
 <AdminLayout title="Dashboard">
@@ -50,6 +61,10 @@ const wishlist = view === "wishlist" ? await listWishlistItems(db) : [];
       <a class:list={["button", { secondary: view !== "journeys" }]} href="/guillaume/?view=journeys" aria-current={view === "journeys" ? "page" : undefined}>Journeys</a>
       <a class:list={["button", { secondary: view !== "places" }]} href="/guillaume/?view=places" aria-current={view === "places" ? "page" : undefined}>Places</a>
       <a class:list={["button", { secondary: view !== "wishlist" }]} href="/guillaume/?view=wishlist" aria-current={view === "wishlist" ? "page" : undefined}>Wishlist</a>
+      <a class:list={["button", { secondary: view !== "airports" }]} href="/guillaume/?view=airports" aria-current={view === "airports" ? "page" : undefined}>Airports</a>
+      <a class:list={["button", { secondary: view !== "airlines" }]} href="/guillaume/?view=airlines" aria-current={view === "airlines" ? "page" : undefined}>Airlines</a>
+      <a class:list={["button", { secondary: view !== "aircraft-types" }]} href="/guillaume/?view=aircraft-types" aria-current={view === "aircraft-types" ? "page" : undefined}>Aircraft Types</a>
+      <a class:list={["button", { secondary: view !== "flights" }]} href="/guillaume/?view=flights" aria-current={view === "flights" ? "page" : undefined}>Flights</a>
       {view === "journeys" && (
         <a class="button secondary sort-toggle" href={`/guillaume/?view=journeys&sort=${journeySort === "desc" ? "asc" : "desc"}`}>
           {journeySort === "desc" ? "Dates: newest first ↓" : "Dates: oldest first ↑"}
@@ -60,8 +75,16 @@ const wishlist = view === "wishlist" ? await listWishlistItems(db) : [];
       journeys.length ? <table class="data-table"><thead><tr><th>Journey</th><th>Dates</th><th>Updated</th></tr></thead><tbody>{journeys.map((journey) => <tr><td><a href={`/guillaume/journeys/${journey.id}/`}>{journey.nameZh || journey.name}</a><br /><small>{journey.slug}</small></td><td>{journey.startDate} — {journey.endDate}</td><td>{journey.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No journeys yet.</p>
     ) : view === "places" ? (
       places.length ? <table class="data-table"><thead><tr><th>Place</th><th>Region</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{places.map((place) => <tr><td><a href={`/guillaume/places/${place.id}/`}>{place.nameZh || place.name}</a><br /><small>{place.slug}</small></td><td>{[place.city, place.region, place.country].filter(Boolean).join(" · ")}</td><td>{place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}</td><td>{place.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No places yet.</p>
-    ) : (
+    ) : view === "wishlist" ? (
       wishlist.length ? <table class="data-table"><thead><tr><th>Wishlist item</th><th>Region</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{wishlist.map((item) => <tr><td><a href={`/guillaume/wishlist/${item.id}/`}>{item.nameZh || item.name}</a>{item.nameZh && <><br /><small>{item.name}</small></>}</td><td>{[item.city, item.region, item.country].filter(Boolean).join(" · ")}</td><td>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</td><td>{item.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No wishlist items yet.</p>
+    ) : view === "airports" ? (
+      airports.length ? <table class="data-table"><thead><tr><th>IATA</th><th>Airport</th><th>Location</th><th>Coordinates</th><th>Updated</th></tr></thead><tbody>{airports.map((airport) => <tr><td><a href={`/guillaume/airports/${airport.id}/`}>{airport.iataCode}</a><br /><small>{airport.icaoCode ?? "—"}</small></td><td>{airport.nameZh || airport.name}{airport.nameZh && <><br /><small>{airport.name}</small></>}</td><td>{[airport.city, airport.region, airport.country].filter(Boolean).join(" · ")}</td><td>{airport.latitude.toFixed(4)}, {airport.longitude.toFixed(4)}</td><td>{airport.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No airports yet.</p>
+    ) : view === "airlines" ? (
+      airlines.length ? <table class="data-table"><thead><tr><th>IATA</th><th>Airline</th><th>Country</th><th>Callsign</th><th>Updated</th></tr></thead><tbody>{airlines.map((airline) => <tr><td><a href={`/guillaume/airlines/${airline.id}/`}>{airline.iataCode}</a><br /><small>{airline.icaoCode ?? "—"}</small></td><td>{airline.nameZh || airline.name}{airline.nameZh && <><br /><small>{airline.name}</small></>}</td><td>{airline.country}</td><td>{airline.callsign ?? "—"}</td><td>{airline.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No airlines yet.</p>
+    ) : view === "aircraft-types" ? (
+      aircraftTypes.length ? <table class="data-table"><thead><tr><th>ICAO</th><th>Aircraft type</th><th>Manufacturer</th><th>Updated</th></tr></thead><tbody>{aircraftTypes.map((type) => <tr><td><a href={`/guillaume/aircraft-types/${type.id}/`}>{type.icaoCode}</a></td><td>{type.modelZh || type.model}{type.modelZh && <><br /><small>{type.model}</small></>}</td><td>{type.manufacturer}</td><td>{type.updatedAt}</td></tr>)}</tbody></table> : <p class="empty-admin">No aircraft types yet.</p>
+    ) : (
+      flights.length ? <table class="data-table"><thead><tr><th>Flight</th><th>Date</th><th>Route</th><th>Type</th><th>Distance</th><th>Time</th><th>Airline</th></tr></thead><tbody>{flights.map((flight) => <tr><td><a href={`/guillaume/flights/${flight.id}/`}>{flight.displayNumber}</a>{flight.journeyName && <><br /><small>{flight.journeyNameZh || flight.journeyName}</small></>}</td><td>{flight.flightDate}</td><td>{flight.departureLabel} → {flight.arrivalLabel}</td><td>{flight.isDomestic ? "Domestic" : "International"}</td><td>{Math.round(flight.routeDistanceKm)} km</td><td>{formatFlightDuration(flight.estimatedHours)}</td><td>{flight.airlineNameZh || flight.airlineName}</td></tr>)}</tbody></table> : <p class="empty-admin">No flights yet.</p>
     )}
   </section>
 </AdminLayout>

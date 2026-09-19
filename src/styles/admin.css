@@ -17,10 +17,10 @@ button:disabled { cursor: wait; opacity: .55; }
 .metric + .metric { border-left: 1px solid var(--line); }
 .metric dt { margin-bottom: 15px; }
 .metric dd { font-family: Georgia, serif; font-size: 44px; }
-.quick-actions { display: flex; gap: 12px; margin-top: 30px; }
+.quick-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .admin-section { margin-top: 52px; }
 .admin-section h2 { margin: 0 0 18px; font-family: var(--serif); font-size: 24px; font-weight: 400; }
-.record-switcher { display: flex; gap: 10px; margin-bottom: 18px; }
+.record-switcher { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
 .record-switcher .sort-toggle { margin-left: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table th { padding: 10px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .1em; text-align: left; text-transform: uppercase; }
