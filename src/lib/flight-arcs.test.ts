@@ -65,6 +65,12 @@ describe("prepareFlightArcs lane assignment", () => {
     expect(inbound.laneCount).toBe(2);
     expect(outbound.offsetDegrees + inbound.offsetDegrees).toBeCloseTo(0, 9);
     expect(Math.abs(outbound.offsetDegrees)).toBeGreaterThan(0);
+    const outboundMidpoint = outbound.path[ARC_SEGMENTS / 2];
+    const inboundMidpoint = inbound.path[ARC_SEGMENTS / 2];
+    expect(Math.hypot(
+      outboundMidpoint[0] - inboundMidpoint[0],
+      outboundMidpoint[1] - inboundMidpoint[1],
+    )).toBeGreaterThan(0.1);
   });
 
   it("orders lanes by date desc, id desc within a pair", () => {
@@ -113,6 +119,13 @@ describe("offset arc geometry", () => {
     const [arc] = prepareFlightArcs([flight("1", PEK, HGH, "2026-01-01")]);
     expect(arc.path[0]).toEqual([PEK.longitude, PEK.latitude]);
     expect(arc.path[ARC_SEGMENTS]).toEqual([HGH.longitude, HGH.latitude]);
+  });
+
+  it("lifts the middle of the route above the globe to avoid depth fighting", () => {
+    const [arc] = prepareFlightArcs([flight("1", PEK, HGH, "2026-01-01")]);
+    expect(arc.path[ARC_SEGMENTS / 2][2]).toBeGreaterThan(0);
+    expect(arc.path[0][2]).toBeUndefined();
+    expect(arc.path[ARC_SEGMENTS][2]).toBeUndefined();
   });
 
   it("shifts an equatorial east-west arc latitudinally at the midpoint", () => {

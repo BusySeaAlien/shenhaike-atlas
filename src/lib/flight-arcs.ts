@@ -20,7 +20,9 @@ export const ARROW_MIN_KM = 100;
 export const LANE_BASE_SPACING_DEG = 0.7;
 export const LANE_MAX_SPAN_DEG = 7;
 
-export type LngLat = [longitude: number, latitude: number];
+export type LngLat =
+  | [longitude: number, latitude: number]
+  | [longitude: number, latitude: number, altitude: number];
 
 export interface FlightArcArrow {
   /** Position at ARROW_FRACTION along the offset path. */
@@ -111,11 +113,24 @@ function greatCirclePoint(
  * `offsetDegrees` is the signed midpoint displacement in degrees; the
  * sin(π·s) envelope keeps both endpoints exactly at the airports.
  */
-function offsetArcPositions(departure: FlightArchiveAirport, arrival: FlightArchiveAirport, offsetDegrees: number): LngLat[] {
+function airportPairKey(departure: FlightArchiveAirport, arrival: FlightArchiveAirport): string {
+  return [departure.id, arrival.id].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join("-");
+}
+
+function offsetArcPositions(
+  departure: FlightArchiveAirport,
+  arrival: FlightArchiveAirport,
+  offsetDegrees: number,
+  cruiseAltitudeMeters: number,
+): LngLat[] {
   const a = toUnitVector([departure.longitude, departure.latitude]);
   const b = toUnitVector([arrival.longitude, arrival.latitude]);
   const offsetRad = (offsetDegrees * Math.PI) / 180;
-  const normal = offsetRad !== 0 ? planeNormal(a, b) : [0, 0, 0];
+  // Always derive the lateral normal in the pair's canonical direction.
+  // Otherwise B→A reverses both the normal and its lane sign, causing a
+  // return flight to land exactly on top of A→B despite having another lane.
+  const departureFirst = departure.id.localeCompare(arrival.id, undefined, { numeric: true }) <= 0;
+  const normal = offsetRad !== 0 ? planeNormal(departureFirst ? a : b, departureFirst ? b : a) : [0, 0, 0];
   const points: LngLat[] = [];
   for (let i = 0; i <= ARC_SEGMENTS; i++) {
     if (i === 0) {
@@ -131,9 +146,11 @@ function offsetArcPositions(departure: FlightArchiveAirport, arrival: FlightArch
     if (offsetRad !== 0) {
       const displacement = offsetRad * Math.sin(Math.PI * s);
       const displaced = normalize([p[0] + normal[0] * displacement, p[1] + normal[1] * displacement, p[2] + normal[2] * displacement]);
-      points.push(toLngLat(displaced));
+      const [lng, lat] = toLngLat(displaced);
+      points.push([lng, lat, cruiseAltitudeMeters * Math.sin(Math.PI * s)]);
     } else {
-      points.push(toLngLat(p));
+      const [lng, lat] = toLngLat(p);
+      points.push([lng, lat, cruiseAltitudeMeters * Math.sin(Math.PI * s)]);
     }
   }
   return points;
@@ -166,9 +183,7 @@ function spacingDegreesFor(laneCount: number): number {
 export function prepareFlightArcs(flights: FlightArchiveRoute[]): FlightArcDatum[] {
   const byPair = new Map<string, FlightArchiveRoute[]>();
   for (const flight of flights) {
-    const a = Number(flight.departure.id);
-    const b = Number(flight.arrival.id);
-    const pairKey = `${Math.min(a, b)}-${Math.max(a, b)}`;
+    const pairKey = airportPairKey(flight.departure, flight.arrival);
     const group = byPair.get(pairKey);
     if (group) group.push(flight);
     else byPair.set(pairKey, [flight]);
@@ -191,15 +206,21 @@ export function prepareFlightArcs(flights: FlightArchiveRoute[]): FlightArcDatum
   }
 
   return flights.map((flight) => {
-    const a = Number(flight.departure.id);
-    const b = Number(flight.arrival.id);
-    const pairKey = `${Math.min(a, b)}-${Math.max(a, b)}`;
+    const pairKey = airportPairKey(flight.departure, flight.arrival);
     const laneInfo = lanes.get(pairKey + ":" + flight.id) ?? {
       lane: 0,
       laneCount: 1,
       offsetDegrees: 0,
     };
-    const path = offsetArcPositions(flight.departure, flight.arrival, laneInfo.offsetDegrees);
+    // Lift the route clear of the globe surface. A surface-hugging PathLayer
+    // depth-fights with the basemap and appears faint or broken in WebGL.
+    const cruiseAltitudeMeters = Math.min(220_000, Math.max(24_000, flight.greatCircleKm * 45));
+    const path = offsetArcPositions(
+      flight.departure,
+      flight.arrival,
+      laneInfo.offsetDegrees,
+      cruiseAltitudeMeters,
+    );
     return {
       ...flight,
       pairKey,

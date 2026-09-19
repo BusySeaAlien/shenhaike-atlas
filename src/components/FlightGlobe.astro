@@ -111,7 +111,7 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
   import type { NightLightPoint } from "../lib/map/globe";
   import { formatFlightDuration } from "../lib/flight-math";
   import { prepareFlightArcs } from "../lib/flight-arcs";
-  import type { FlightArcDatum } from "../lib/flight-arcs";
+  import type { FlightArcDatum, LngLat } from "../lib/flight-arcs";
   import type { FlightArchiveAirport, FlightArchiveRoute } from "../types/domain";
 
   type FlightType = "all" | "domestic" | "international";
@@ -468,11 +468,11 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
           // points outside the planet disc.)
           const arrowLengthPx = 11;
           const arrowWidthPx = 5;
-          const buildArrowPath = (flight: FlightArcDatum): [number, number][] => {
+          const buildArrowPath = (flight: FlightArcDatum): LngLat[] => {
             const arrow = flight.arrow!;
             try {
-              const a = map.project(arrow.position);
-              const b = map.project(arrow.ahead);
+              const a = map.project([arrow.position[0], arrow.position[1]]);
+              const b = map.project([arrow.ahead[0], arrow.ahead[1]]);
               const pxLen = Math.hypot(b.x - a.x, b.y - a.y);
               if (pxLen < 1e-6) return [];
               // Tangent in longitude/latitude space with the cos(latitude)
@@ -487,19 +487,23 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
               const degreesPerPx = tLen / pxLen;
               const backLength = degreesPerPx * arrowLengthPx;
               const halfWidth = degreesPerPx * arrowWidthPx;
-              const tip = arrow.position;
-              const back: [number, number] = [
+              const altitude = arrow.position[2] ?? 0;
+              const tip: LngLat = [arrow.position[0], arrow.position[1], altitude];
+              const back: LngLat = [
                 tip[0] - (tLng * backLength) / cosLat,
                 tip[1] - tLat * backLength,
+                altitude,
               ];
               // Perpendicular of (tLng, tLat) in this metric is (-tLat, tLng).
-              const wingA: [number, number] = [
+              const wingA: LngLat = [
                 back[0] + (-tLat * halfWidth) / cosLat,
                 back[1] + tLng * halfWidth,
+                altitude,
               ];
-              const wingB: [number, number] = [
+              const wingB: LngLat = [
                 back[0] - (-tLat * halfWidth) / cosLat,
                 back[1] - tLng * halfWidth,
+                altitude,
               ];
               return [wingA, tip, wingB];
             } catch {
@@ -522,10 +526,10 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
               getPath: (flight, info) => (info.index < arcCount ? flight.path : buildArrowPath(flight)),
               antialiasing: true,
               pickable: true,
-              getWidth: (_flight, info) => (info.index < arcCount ? 1.4 : 1.8),
-              widthMinPixels: 1,
-              widthMaxPixels: 2.5,
-              getColor: (_flight, info) => (info.index < arcCount ? [236, 241, 239, 180] : [255, 255, 255, 255]),
+              getWidth: (_flight, info) => (info.index < arcCount ? 1.65 : 2),
+              widthMinPixels: 1.25,
+              widthMaxPixels: 3,
+              getColor: (_flight, info) => (info.index < arcCount ? [225, 245, 242, 225] : [255, 255, 255, 255]),
               parameters: { cullMode: "none" },
             });
             return [layer];
