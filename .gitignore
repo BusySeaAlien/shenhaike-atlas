@@ -13,3 +13,8 @@ worker-configuration.d.ts
 
 # 原始 GIS 数据：体积大、来源待确认，不提交（见 src/lib/map/boundaries/data/README.md）
 data-source/
+
+# 航班原始导出数据：仅供本地导入，可能包含个人行程信息
+docs/【航旅纵横】 行程导出.xls
+docs/航班-已结束-国内.csv
+docs/航班-已结束-国际港澳台.csv
