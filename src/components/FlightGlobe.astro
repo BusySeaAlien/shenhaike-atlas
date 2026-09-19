@@ -110,6 +110,8 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
   } from "../lib/map/globe";
   import type { NightLightPoint } from "../lib/map/globe";
   import { formatFlightDuration } from "../lib/flight-math";
+  import { prepareFlightArcs } from "../lib/flight-arcs";
+  import type { FlightArcDatum } from "../lib/flight-arcs";
   import type { FlightArchiveAirport, FlightArchiveRoute } from "../types/domain";
 
   type FlightType = "all" | "domestic" | "international";
@@ -129,10 +131,15 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
     if (!canvas || !payloadElement) return;
 
     let airports: FlightArchiveAirport[] = [];
-    let flights: FlightArchiveRoute[] = [];
+    let flights: FlightArcDatum[] = [];
     let years: string[] = [];
     try {
-      ({ airports, flights, years } = JSON.parse(payloadElement.textContent || "{}") as FlightPayload);
+      const payload = JSON.parse(payloadElement.textContent || "{}") as FlightPayload;
+      airports = payload.airports;
+      years = payload.years;
+      // Assign lateral lanes and precompute arc geometry on the full dataset
+      // once, so a flight keeps its lane no matter how the filters change.
+      flights = prepareFlightArcs(payload.flights);
     } catch {
       if (status) status.textContent = "Flight data unavailable. The flight list below remains available.";
       return;
@@ -191,9 +198,8 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
     });
 
     let map: maplibregl.Map;
-    let arcLayer: any = null;
     let overlay: any = null;
-    let buildArcLayer: ((data: FlightArchiveRoute[]) => any) | null = null;
+    let buildFlightLayers: ((data: FlightArcDatum[]) => any[]) | null = null;
     let popup: maplibregl.Popup | null = null;
     let frameId = 0;
     let restartTimer = 0;
@@ -238,11 +244,10 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
     const applyFilter = () => {
       updateStats();
       updateList();
-      if (buildArcLayer && overlay) {
-        // deck.gl 9 layers are immutable: rebuild with the new data and swap
-        // the instance in through the overlay (Layer.setProps no longer exists).
-        arcLayer = buildArcLayer(filteredFlights());
-        overlay.setProps({ layers: [arcLayer] });
+      if (buildFlightLayers && overlay) {
+        // deck.gl 9 layers are immutable: rebuild path and arrow layers with
+        // the new data and swap them in through the overlay.
+        overlay.setProps({ layers: buildFlightLayers(filteredFlights()) });
       }
       (map?.getSource("flight-airports") as GeoJSONSource | undefined)?.setData(airportGeoJson(filteredAirports()));
       for (const button of typeButtons) {
@@ -445,36 +450,100 @@ const payload = JSON.stringify({ airports, flights, years }).replaceAll("<", "\\
 
         // deck.gl arc overlay, loaded dynamically so a deck.gl failure cannot
         // take down the base globe, the airport markers or the flight list.
+        // Wait for the first paint: the arrow paths are built with
+        // map.project, which can return NaN before the globe transform has
+        // rendered once.
+        await new Promise<void>((resolve) => map.once("render", resolve));
         try {
-          const [{ MapLibreOverlay }, { ArcLayer }] = await Promise.all([
+          const [{ MapLibreOverlay }, { PathLayer }] = await Promise.all([
             import("@deck.gl/maplibre"),
             import("@deck.gl/layers"),
           ]);
-          buildArcLayer = (data: FlightArchiveRoute[]) => new ArcLayer({
-            id: "flight-arcs",
-            data,
-            getSourcePosition: (flight: FlightArchiveRoute) => [flight.departure.longitude, flight.departure.latitude],
-            getTargetPosition: (flight: FlightArchiveRoute) => [flight.arrival.longitude, flight.arrival.latitude],
-            greatCircle: true,
-            numSegments: 100,
-            antialiasing: true,
-            pickable: true,
-            getWidth: 1.4,
-            widthMinPixels: 1,
-            widthMaxPixels: 2.5,
-            getSourceColor: [236, 241, 239, 180],
-            getTargetColor: [236, 241, 239, 180],
-            getHeight: (flight: FlightArchiveRoute) => Math.min(1.8, Math.max(0.25, flight.greatCircleKm / 4000)),
-            parameters: { cullMode: "none" },
-          });
-          arcLayer = buildArcLayer(filteredFlights());
-          overlay = new MapLibreOverlay({ interleaved: true, layers: [arcLayer] });
+          // Arcs are precomputed, laterally offset great-circle polylines
+          // (see lib/flight-arcs.ts); arrowheads are short V-shaped polylines
+          // drawn with the same PathLayer. Each V is built in map space,
+          // using map.project only to measure the local pixels-per-degree
+          // scale so the arrow keeps a constant on-screen size at every zoom.
+          // (map.unproject is avoided: on the globe it returns NaN for screen
+          // points outside the planet disc.)
+          const arrowLengthPx = 11;
+          const arrowWidthPx = 5;
+          const buildArrowPath = (flight: FlightArcDatum): [number, number][] => {
+            const arrow = flight.arrow!;
+            try {
+              const a = map.project(arrow.position);
+              const b = map.project(arrow.ahead);
+              const pxLen = Math.hypot(b.x - a.x, b.y - a.y);
+              if (pxLen < 1e-6) return [];
+              // Tangent in longitude/latitude space with the cos(latitude)
+              // metric so angles are true on the sphere's local tangent plane.
+              const cosLat = Math.max(0.2, Math.cos((arrow.position[1] * Math.PI) / 180));
+              let tLng = (arrow.ahead[0] - arrow.position[0]) * cosLat;
+              let tLat = arrow.ahead[1] - arrow.position[1];
+              const tLen = Math.hypot(tLng, tLat);
+              if (tLen < 1e-9) return [];
+              tLng /= tLen;
+              tLat /= tLen;
+              const degreesPerPx = tLen / pxLen;
+              const backLength = degreesPerPx * arrowLengthPx;
+              const halfWidth = degreesPerPx * arrowWidthPx;
+              const tip = arrow.position;
+              const back: [number, number] = [
+                tip[0] - (tLng * backLength) / cosLat,
+                tip[1] - tLat * backLength,
+              ];
+              // Perpendicular of (tLng, tLat) in this metric is (-tLat, tLng).
+              const wingA: [number, number] = [
+                back[0] + (-tLat * halfWidth) / cosLat,
+                back[1] + tLng * halfWidth,
+              ];
+              const wingB: [number, number] = [
+                back[0] - (-tLat * halfWidth) / cosLat,
+                back[1] - tLng * halfWidth,
+              ];
+              return [wingA, tip, wingB];
+            } catch {
+              return [];
+            }
+          };
+          // Arcs and arrowheads share ONE PathLayer: the data array holds the
+          // arc datums followed by a second copy of the arrow-carrying datums,
+          // and the index picks the geometry. This keeps a single layer, which
+          // the interleaved MapLibreOverlay redraws reliably after filter
+          // rebuilds (a second layer was observed to vanish on setProps).
+          let layerBuild = 0;
+          buildFlightLayers = (data: FlightArcDatum[]) => {
+            const arrows = data.filter((flight) => flight.arrow);
+            const combined = [...data, ...arrows];
+            const arcCount = data.length;
+            const layer = new PathLayer<FlightArcDatum>({
+              id: `flight-arcs-${layerBuild++}`,
+              data: combined,
+              getPath: (flight, info) => (info.index < arcCount ? flight.path : buildArrowPath(flight)),
+              antialiasing: true,
+              pickable: true,
+              getWidth: (_flight, info) => (info.index < arcCount ? 1.4 : 1.8),
+              widthMinPixels: 1,
+              widthMaxPixels: 2.5,
+              getColor: (_flight, info) => (info.index < arcCount ? [236, 241, 239, 180] : [255, 255, 255, 255]),
+              parameters: { cullMode: "none" },
+            });
+            return [layer];
+          };
+          overlay = new MapLibreOverlay({ interleaved: true, layers: buildFlightLayers(filteredFlights()) });
           map.addControl(overlay);
+          // Arrowheads are sized in screen space at build time; rebuild the
+          // layers after zooming so their pixel size stays constant.
+          map.on("zoomend", () => {
+            if (buildFlightLayers && overlay) {
+              overlay.setProps({ layers: buildFlightLayers(filteredFlights()) });
+            }
+          });
 
           map.on("mousemove", (event: MapLayerMouseEvent) => {
             if (!overlay) return;
             const picked = overlay.pickObject({ x: event.point.x, y: event.point.y });
-            const flight = picked?.object as FlightArchiveRoute | undefined;
+            const flight = picked?.object as FlightArcDatum | undefined;
             map.getCanvas().style.cursor = flight ? "pointer" : "";
             if (hoverTip) {
               if (flight) {
