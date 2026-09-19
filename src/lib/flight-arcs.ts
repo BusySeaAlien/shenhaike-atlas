@@ -17,9 +17,9 @@ import type { FlightArchiveAirport, FlightArchiveRoute } from "../types/domain";
 export const ARC_SEGMENTS = 100;
 export const ARROW_FRACTION = 0.7;
 export const ARROW_MIN_KM = 100;
-export const RIGHT_CURVE_OFFSET_DEG = 1.1;
-export const LANE_BASE_SPACING_DEG = 0.25;
-export const LANE_MAX_SPAN_DEG = 1.2;
+export const RIGHT_CURVE_OFFSET_DEG = 1.8;
+export const LANE_BASE_SPACING_DEG = 0.55;
+export const LANE_MAX_SPAN_DEG = 3;
 
 export type LngLat =
   | [longitude: number, latitude: number]

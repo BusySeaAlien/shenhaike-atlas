@@ -4,6 +4,7 @@ import {
   ARC_SEGMENTS,
   ARROW_FRACTION,
   ARROW_MIN_KM,
+  LANE_BASE_SPACING_DEG,
   LANE_MAX_SPAN_DEG,
   RIGHT_CURVE_OFFSET_DEG,
   prepareFlightArcs,
@@ -112,6 +113,17 @@ describe("prepareFlightArcs lane assignment", () => {
     const span = Math.max(...offsets) - Math.min(...offsets);
     expect(span).toBeLessThanOrEqual(LANE_MAX_SPAN_DEG + 1e-9);
     expect(span).toBeGreaterThan(0);
+  });
+
+  it("keeps repeated flights visibly separated within the right-hand fan", () => {
+    const arcs = prepareFlightArcs([
+      flight("1", PEK, HGH, "2026-01-03"),
+      flight("2", PEK, HGH, "2026-01-02"),
+      flight("3", PEK, HGH, "2026-01-01"),
+    ]).sort((a, b) => a.lane - b.lane);
+    expect(arcs[1].offsetDegrees - arcs[0].offsetDegrees).toBeCloseTo(LANE_BASE_SPACING_DEG, 9);
+    expect(arcs[2].offsetDegrees - arcs[1].offsetDegrees).toBeCloseTo(LANE_BASE_SPACING_DEG, 9);
+    expect(arcs.every((arc) => arc.offsetDegrees < 0)).toBe(true);
   });
 });
 
